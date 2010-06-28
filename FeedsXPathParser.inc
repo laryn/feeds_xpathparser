@@ -61,31 +61,36 @@ class FeedsXPathParser extends FeedsParser {
       }
     }
 
-    $final_query = implode(' | ', $queries);
-    $results = @$xml->xpath($final_query);
+    $results = array();
+    foreach ($queries as $key => $query) {
+      $result = @$xml->xpath($query);
+      if (!$result) {
+        drupal_set_message(t('There was an error with one of your XPath queries.
+          Make sure the syntax is valid.'), 'error');
+        return;
+      }
+      $results[$sources[$key]] = $result;
+    }
     unset($xml);
 
-    if (!$results) {
-      drupal_set_message(t('There was an error with one of your XPath queries.
-        Make sure the syntax is valid.'), 'error');
-      return;
-    }
-
-    $num_sources = count($sources);
-
-    $output = array_chunk($results, $num_sources);
-
-    foreach ($output as $key => $items) {
-      if ($num_sources == count($items)) {
-        foreach ($items as $k => $item) {
-          if (in_array($sources[$k], $rawXML)) {
-            $items[$k] = $item->asXML();
+    $output = array();
+    foreach ($results as $source => $items) {
+      if (!isset($count) || $count == count($items)) {
+        foreach ($items as $key => $item) {
+          if (in_array($source, $rawXML)) {
+            $item = $item->asXML();
           }
           else {
-            $items[$k] = (string) $item;
+            $item = (string) $item;
+          }
+          if (isset($output[$key])) {
+            $output[$key] = array_merge(array($source => $item), $output[$key]);
+          }
+          else {
+            $output[$key] = array($source => $item);
           }
         }
-        $output[$key] = array_combine($sources, $items);
+        $count = count($items);
       }
       else {
         drupal_set_message(t('Mismatching results.
@@ -93,6 +98,7 @@ class FeedsXPathParser extends FeedsParser {
         return;
       }
     }
+
     $batch->setItems($output);
   }
 
