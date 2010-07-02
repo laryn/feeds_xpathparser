@@ -23,22 +23,37 @@ class FeedsXPathParser extends FeedsParser {
   public function parse(FeedsImportBatch $batch, FeedsSource $source) {
     $raw = $batch->getRaw();
 
-    $config = $source->getConfigFor($this);
-    $rawXML = array_keys(array_filter($config['rawXML']));
+    $this->config = $source->getConfigFor($this);
+    $this->rawXML = array_keys(array_filter($this->config['rawXML']));
 
+    if ($this->config['parser_type'] == FEEDS_XPATH_PARSER_XML) {
+      $output = $this->parseXML($raw);
+    }
+    elseif ($this->config['parser_type'] == FEEDS_XPATH_PARSER_HTML) {
+      $output = $this->parseHTML($raw);
+    }
+    elseif ($this->config['parser_type'] == FEEDS_XPATH_PARSER_REGEX) {
+      $output = $this->parseREGEX($raw);
+    }
+
+    if ($output) {
+      $batch->setItems($output);
+    }
+  }
+
+  private function parseXML($raw) {
     $dom = new DOMDocument();
+    $success = @$dom->loadXML($raw);
+    return $this->query($success, $dom);
+  }
 
-    if ($config['parser_type'] == FEEDS_XPATH_PARSER_XML) {
-      $success = @$dom->loadXML($raw);
-    }
-    elseif ($config['parser_type'] == FEEDS_XPATH_PARSER_HTML) {
-      $success = @$dom->loadHTML($raw);
-    }
-    elseif ($config['parser_type'] == FEEDS_XPATH_PARSER_REGEX) {
-      drupal_set_message(t('Regex support not implemented yet.'), 'error');
-      return;
-    }
+  private function parseHTML($raw) {
+    $dom = new DOMDocument();
+    $success = @$dom->loadHTML($raw);
+    return $this->query($success, $dom);
+  }
 
+  private function query($success, $dom) {
     if (!$success) {
       drupal_set_message(t('There was an error parsing the document.
         Please make sure you have selected the correct parser.'), 'error');
@@ -50,16 +65,7 @@ class FeedsXPathParser extends FeedsParser {
 
     $mappings = feeds_importer($this->id)->processor->config['mappings'];
 
-    $queries = array();
-    $sources = array();
-
-    foreach ($mappings as $mapping) {
-      $source = $mapping['source'];
-      if (trim($config[$source])) {
-       $sources[] = $source;
-       $queries[] = $config[$source];
-      }
-    }
+    list($sources, $queries) = $this->getSourcesQueries($mappings);
 
     $results = array();
     foreach ($queries as $key => $query) {
@@ -77,18 +83,13 @@ class FeedsXPathParser extends FeedsParser {
     foreach ($results as $source => $items) {
       if (!isset($count) || $count == count($items)) {
         foreach ($items as $key => $item) {
-          if (in_array($source, $rawXML)) {
+          if (in_array($source, $this->rawXML)) {
             $item = $item->asXML();
           }
           else {
             $item = (string) $item;
           }
-          if (isset($output[$key])) {
-            $output[$key] = array_merge(array($source => $item), $output[$key]);
-          }
-          else {
-            $output[$key] = array($source => $item);
-          }
+          $output[$key] = array_merge((array)$output[$key], array($source => $item));
         }
         $count = count($items);
       }
@@ -98,8 +99,73 @@ class FeedsXPathParser extends FeedsParser {
         return;
       }
     }
+    return $output;
+  }
 
-    $batch->setItems($output);
+  private function parseREGEX($raw) {
+    $mappings = feeds_importer($this->id)->processor->config['mappings'];
+
+    list($sources, $queries) = $this->getSourcesQueries($mappings);
+
+    $results = array();
+
+    foreach ($queries as $key => $query) {
+      $success = @preg_match_all($query, $raw, $matches);
+
+      if ($success !== FALSE) {
+
+        if (isset($matches[1])) {
+          array_shift($matches);
+          $merged = array();
+          foreach ($matches as $match) {
+            foreach ($match as $k => $item) {
+              $merged[$k][] = $item;
+            }
+          }
+          foreach ($merged as $k => $values) {
+            $merged[$k] = implode(' ', $values);
+          }
+          $results[$sources[$key]] = $merged;
+        }
+
+        else {
+          $results[$sources[$key]] = $matches[0];
+        }
+      }
+      else {
+        drupal_set_message(t('There was an error with one of your regex queries.
+          Make sure the syntax is valid.'), 'error');
+        return;
+      }
+    }
+
+    $output = array();
+    foreach ($results as $source => $items) {
+      if (!isset($count) || $count == count($items)) {
+        foreach ($items as $key => $item) {
+          $output[$key] = array_merge((array) $output[$key], array($source => $item));
+        }
+        $count = count($items);
+      }
+      else {
+        drupal_set_message(t('Mismatching results.
+          Queries must produce the same number of items.'), 'error');
+        return;
+      }
+    }
+    return $output;
+  }
+
+
+  private function getSourcesQueries($mappings) {
+    foreach ($mappings as $mapping) {
+      $source = $mapping['source'];
+      if (trim($this->config[$source])) {
+       $sources[] = $source;
+       $queries[] = $this->config[$source];
+      }
+    }
+    return array($sources, $queries);
   }
 
   /**
@@ -136,13 +202,38 @@ class FeedsXPathParser extends FeedsParser {
 
     $form['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
 
+    ctools_include('dependent');
+
     $form['parser_type'] = array(
       '#title'    => t('Select the parsing engine to use'),
       '#type'     => 'radios',
-      '#options'   => array('HTML', 'XML'),
+      '#options'   => array('HTML', 'XML', 'REGEX'),
       '#default_value' => isset($source_config['parser_type']) ?
                           $source_config['parser_type'] : FEEDS_XPATH_PARSER_HTML,
     );
+
+    $regex_help = array(
+      t('The regex query should be in the form <strong>/.*/</strong>.'),
+      t('If a capture group is not specified then the fulltext match is returned.'),
+      t('If more than one capture group is specified, then they wil be added together with a space in between.'),
+    );
+
+    $form['regex_help'] = array(
+      '#type' => 'fieldset',
+      '#input' => TRUE,
+      '#process'       => array('ctools_dependent_process'),
+      '#prefix'        => '<div id="edit-feeds-FeedsXPathParser-regex-help-wrapper"><div id="edit-feeds-FeedsXPathParser-regex-help">',
+      '#suffix'        => '</div></div>',
+      '#dependency'    => array(
+        'radio:feeds[FeedsXPathParser][parser_type]' => array(
+          FEEDS_XPATH_PARSER_REGEX,
+        )
+      ),
+    );
+
+    $form['regex_help']['text']['#value'] = '<div class="help">' .
+                                            theme('item_list', $regex_help) .
+                                            '</div>';
 
     foreach ($sources as $source) {
       $form[$source] = array(
@@ -155,10 +246,18 @@ class FeedsXPathParser extends FeedsParser {
 
     $form['rawXML'] = array(
       '#type'          => 'checkboxes',
-      '#title'         => t('Select the queries you would like to return raw XML/HTML
-                            (not used for REGEX))'),
+      '#title'         => t('Select the queries you would like to return raw XML/HTML'),
       '#options'       => array_combine($sources, $sources),
+      '#process'       => array('ctools_dependent_process', 'expand_checkboxes'),
+      '#prefix'        => '<div id="edit-feeds-FeedsXPathParser-rawXML-wrapper"><div id="edit-feeds-FeedsXPathParser-rawXML">',
+      '#suffix'        => '</div></div>',
       '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
+      '#dependency'    => array(
+        'radio:feeds[FeedsXPathParser][parser_type]' => array(
+          FEEDS_XPATH_PARSER_HTML,
+          FEEDS_XPATH_PARSER_XML,
+        )
+      ),
     );
 
     return $form;
