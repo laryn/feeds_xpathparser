@@ -6,7 +6,6 @@ define('FEEDS_XPATH_PARSER_HTML', 0);
 define('FEEDS_XPATH_PARSER_XML', 1);
 define('FEEDS_XPATH_PARSER_REGEX', 2);
 define('FEEDS_XPATH_PARSER_QUERYPATH', 3);
-define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<!@)(?<!:)(?<!\s)(?<!-)(?<!\')(?<!=)(?<!\[)(?<!")\b(\w+)\b(?!:)(?!\()/i');
 
 /**
  * @file
@@ -23,90 +22,35 @@ class FeedsXPathParser extends FeedsParser {
    * Implementation of FeedsParser::parse().
    */
   public function parse(FeedsImportBatch $batch, FeedsSource $source) {
-    if (!function_exists('simplexml_import_dom')) {
-      throw new Exception(t('Feeds XML Parser requires SimpleXML PHP extension.'));
-    }
 
     $mappings = feeds_importer($this->id)->processor->config['mappings'];
     $source_config = $source->getConfigFor($this);
 
     if ($source_config['parser_type'] == FEEDS_XPATH_PARSER_XML) {
       require_once 'FeedsXPathParserHTML.inc';
-      $this->parser = new FeedsXPathParserXML;
-      $output = $this->parser->parse($batch->getRaw(), $source_config, $mappings);
+      $this->parser = new FeedsXPathParserXML($source_config, $mappings);
     }
 
     elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_HTML) {
       require_once 'FeedsXPathParserHTML.inc';
-      $this->parser = new FeedsXPathParserHTML;
-      $output = $this->parser->parse($batch->getRaw(), $source_config, $mappings);
+      $this->parser = new FeedsXPathParserHTML($source_config, $mappings);
     }
 
     elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_REGEX) {
-      $output = $this->parseREGEX($batch->getRaw());
+      require_once 'FeedsXPathParserREGEX.inc';
+      $this->parser = new FeedsXPathParserREGEX($source_config, $mappings);
     }
 
-    elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_QUERYPATH && module_exists('querypath')) {
+    elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_QUERYPATH) {
       require_once 'FeedsXPathParserQueryPath.inc';
-      $this->parser = new FeedsXPathParserQueryPath;
-      $output = $this->parser->parse($batch->getRaw(), $source_config, $mappings);
+      $this->parser = new FeedsXPathParserQueryPath($source_config, $mappings);
     }
+
+    $output = $this->parser->parse($batch->getRaw());
 
     if ($output) {
       $batch->setItems($output);
     }
-  }
-
-  private function parseREGEX($raw) {
-    $mappings = feeds_importer($this->id)->processor->config['mappings'];
-
-    $this->setSourcesQueries($mappings);
-
-    $results = array();
-
-    foreach ($this->queries as $key => $query) {
-      $success = @preg_match_all($query, $raw, $matches);
-
-      if ($success !== FALSE) {
-
-        if (isset($matches[1])) {
-          array_shift($matches);
-          $merged = array();
-          foreach ($matches as $match) {
-            foreach ($match as $k => $item) {
-              $merged[$k][] = $item;
-            }
-          }
-          foreach ($merged as $k => $values) {
-            $merged[$k] = implode(' ', $values);
-          }
-          $results[$this->sources[$key]] = $merged;
-        }
-
-        else {
-          $results[$this->sources[$key]] = $matches[0];
-        }
-      }
-      else {
-        drupal_set_message(t('There was an error with the regex: %query', array('%query' => $query)));
-      }
-    }
-
-    $output = array();
-    foreach ($results as $source => $items) {
-      if (!isset($count) || $count == count($items)) {
-        foreach ($items as $key => $item) {
-          $output[$key] = array_merge((array) $output[$key], array($source => $item));
-        }
-        $count = count($items);
-      }
-      else {
-        drupal_set_message(t('Mismatching results.
-          Queries must produce the same number of items.'), 'error');
-        return;
-      }
-    }
-    return $output;
   }
 
   function getSourceElement($item, $element_key) {

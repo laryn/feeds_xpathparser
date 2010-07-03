@@ -1,16 +1,22 @@
 <?php
+// $Id$
 
 class FeedsXPathParserQueryPath {
 
-  public function parse($raw, $config, $mappings) {
+  public function __construct($config, $mappings) {
+    if (!module_exists('querypath')) {
+      throw new Exception(t('FeedsXPathParser requires the QueryPath module to parse QueryPath.'));
+    }
     $this->config = $config;
     $this->setSourcesQueries($mappings);
-    $output = array();
+  }
 
+  public function parse($raw, $config) {
+
+    $output = array();
     foreach (qp($raw, $config['context']) as $child) {
       $output[] = $child->html();
     }
-
     return $output;
   }
 

@@ -1,11 +1,19 @@
 <?php
+// $Id$
+
+define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=@:\'"-\s[])\b(\w+)\b(?!:)(?![\(\s])/i');
 
 class FeedsXPathParserHTML {
 
-  public function parse($raw, $config, $mappings) {
+  public function __construct($config, $mappings) {
     $this->config = $config;
     $this->setSourcesQueries($mappings);
+    if (!function_exists('simplexml_import_dom')) {
+      throw new Exception(t('FeedsXPathParser requires SimpleXML to parse HTML or XML.'));
+    }
+  }
 
+  public function parse($raw) {
     $dom = new DOMDocument();
     $success = @$dom->loadHTML($raw);
 
@@ -31,7 +39,7 @@ class FeedsXPathParserHTML {
     }
   }
 
-  private function query($xml) {
+  public function query($xml) {
 
     $xml = $this->setNamespaces($xml);
 
@@ -88,9 +96,7 @@ class FeedsXPathParserHTML {
 
 class FeedsXPathParserXML extends FeedsXPathParserHTML {
 
-  public function parse($raw, $config, $mappings) {
-    $this->config = $config;
-    $this->setSourcesQueries($mappings);
+  public function parse($raw) {
 
     $xml = new SimpleXMLElement($raw);
     return $this->query($xml);
