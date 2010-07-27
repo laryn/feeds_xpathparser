@@ -1,11 +1,26 @@
 <?php
 // $Id$
 
-
-define('FEEDS_XPATH_PARSER_HTML', 0);
-define('FEEDS_XPATH_PARSER_XML', 1);
-define('FEEDS_XPATH_PARSER_REGEX', 2);
-define('FEEDS_XPATH_PARSER_QUERYPATH', 3);
+function _feeds_xpathparser_parser_types() {
+  return array(
+    'HTML'      => array(
+      'file'  => 'FeedsXPathParserHTML.inc',
+      'class' => 'FeedsXPathParserHTML',
+    ),
+    'XML'       => array(
+      'file'  => 'FeedsXPathParserHTML.inc',
+      'class' => 'FeedsXPathParserXML',
+    ),
+    'QueryPath' => array(
+      'file'  => 'FeedsXPathParserQueryPath.inc',
+      'class' => 'FeedsXPathParserQueryPath',
+    ),
+    'REGEX' => array(
+      'file'  => 'FeedsXPathParserREGEX.inc',
+      'class' => 'FeedsXPathParserREGEX',
+    )
+  );
+}
 
 /**
  * @file
@@ -24,37 +39,22 @@ class FeedsXPathParser extends FeedsParser {
   public function parse(FeedsImportBatch $batch, FeedsSource $source) {
 
     $mappings = feeds_importer($this->id)->processor->config['mappings'];
+    if (empty($mappings)) {
+      throw new Exception(t('FeedsXPathParser: No mappings were defined.'));
+    }
     $source_config = $source->getConfigFor($this);
 
-    if ($source_config['parser_type'] == FEEDS_XPATH_PARSER_XML) {
-      require_once 'FeedsXPathParserHTML.inc';
-      $this->parser = new FeedsXPathParserXML($source_config, $mappings);
-    }
+    $types = _feeds_xpathparser_parser_types();
 
-    elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_HTML) {
-      require_once 'FeedsXPathParserHTML.inc';
-      $this->parser = new FeedsXPathParserHTML($source_config, $mappings);
-    }
+    require_once $types[$source_config['parser_type']]['file'];
+    $class = $types[$source_config['parser_type']]['class'];
+    $parser = new $class($source_config, $mappings);
 
-    elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_REGEX) {
-      require_once 'FeedsXPathParserREGEX.inc';
-      $this->parser = new FeedsXPathParserREGEX($source_config, $mappings);
-    }
-
-    elseif ($source_config['parser_type'] == FEEDS_XPATH_PARSER_QUERYPATH) {
-      require_once 'FeedsXPathParserQueryPath.inc';
-      $this->parser = new FeedsXPathParserQueryPath($source_config, $mappings);
-    }
-
-    $output = $this->parser->parse($batch->getRaw());
+    $output = $parser->parse($batch->getRaw());
 
     if ($output) {
       $batch->setItems($output);
     }
-  }
-
-  function getSourceElement($item, $element_key) {
-    return $this->parser->getSourceElement($item, $element_key);
   }
 
   /**
@@ -81,20 +81,25 @@ class FeedsXPathParser extends FeedsParser {
       }
     }
 
+    if (empty($sources)) {
+      $form['message']['#value'] = 'FeedsXPathParser: No mappings were defined.';
+      return $form;
+    }
+
     ctools_include('dependent');
 
-    $supported = array('HTML', 'XML', 'REGEX');
+    $types = array_keys(_feeds_xpathparser_parser_types());
 
-    if (module_exists('querypath')) {
-      $supported[] = 'QueryPath';
+    if (!module_exists('querypath')) {
+      unset($types['QueryPath']);
     }
 
     $form['parser_type'] = array(
       '#title'    => t('Select the parsing engine to use'),
       '#type'     => 'radios',
-      '#options'   => $supported,
+      '#options'   => array_combine($types, $types),
       '#default_value' => isset($source_config['parser_type']) ?
-                          $source_config['parser_type'] : FEEDS_XPATH_PARSER_HTML,
+                          $source_config['parser_type'] : 'HTML',
     );
 
     $regex_help = array(
@@ -111,7 +116,7 @@ class FeedsXPathParser extends FeedsParser {
       '#suffix'        => '</div></div>',
       '#dependency'    => array(
         'radio:feeds[FeedsXPathParser][parser_type]' => array(
-          FEEDS_XPATH_PARSER_REGEX,
+          'REGEX',
         )
       ),
     );
@@ -149,7 +154,7 @@ class FeedsXPathParser extends FeedsParser {
       '#process'       => array('ctools_dependent_process'),
       '#dependency'    => array(
         'radio:feeds[FeedsXPathParser][parser_type]' => array(
-          FEEDS_XPATH_PARSER_QUERYPATH,
+          'QueryPath',
         )
       ),
     );
@@ -180,9 +185,7 @@ class FeedsXPathParser extends FeedsParser {
       '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
       '#dependency'    => array(
         'radio:feeds[FeedsXPathParser][parser_type]' => array(
-          FEEDS_XPATH_PARSER_HTML,
-          FEEDS_XPATH_PARSER_XML,
-          FEEDS_XPATH_PARSER_QUERYPATH,
+          'HTML', 'XML', 'QueryPath',
         )
       ),
     );

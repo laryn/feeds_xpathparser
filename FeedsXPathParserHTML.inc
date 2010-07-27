@@ -1,14 +1,14 @@
 <?php
 // $Id$
 
-define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=@:\'"-\s[])\b(\w+)\b(?!:)(?![\(\s])/i');
+define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=:\'"-\s[])\b(\w+)\b(?!:)(?![\(\s])/i');
 
 class FeedsXPathParserHTML {
 
   public function __construct($config, $mappings) {
     $this->config = $config;
     $this->setSourcesQueries($mappings);
-    if (!function_exists('simplexml_import_dom')) {
+    if (!extension_loaded('simplexml')) {
       throw new Exception(t('FeedsXPathParser requires SimpleXML to parse HTML or XML.'));
     }
   }
@@ -43,17 +43,23 @@ class FeedsXPathParserHTML {
 
     $xml = $this->setNamespaces($xml);
 
-    $results = @$xml->xpath($this->config['context']);
+    $all_items = @$xml->xpath($this->config['context']);
     if ($results === FALSE) {
       throw new Exception(t('There was an error with the XPath query: %query',
                             array('%query' => $this->sourceConfig['context'])));
     }
     unset($xml);
 
-    foreach ($results as &$result) {
-      $result = $result->asXML();
+    $parsed_items = array();
+    foreach ($all_items as $item) {
+      $item = $item->asXML();
+      $parsed_item = array();
+      foreach ($this->sources as $source) {
+        $parsed_item[$source] = $this->getSourceElement($item, $source);
+      }
+      $parsed_items[] = $parsed_item;
     }
-    return $results;
+    return $parsed_items;
   }
 
   private function setNamespaces($xml) {
@@ -62,7 +68,7 @@ class FeedsXPathParserHTML {
     foreach ($this->namespaces as $prefix => $namespace) {
       if ($prefix === '') {
         $xml->registerXPathNamespace('__default__', $namespace);
-        $this->sourceConfig['context'] = preg_replace(FEEDS_XPATH_PREG,
+        $this->config['context'] = preg_replace(FEEDS_XPATH_PREG,
           '$1__default__:$2', $this->config['context']
         );
       }
@@ -80,7 +86,7 @@ class FeedsXPathParserHTML {
     unset($xml);
     $rawXML = array_keys(array_filter($this->config['rawXML']));
 
-    if (is_array($results) && !empty($results)) {
+    if (is_array($results)) {
       foreach ($results as &$result) {
         if (in_array($element_key, $rawXML)) {
           $result = $result->asXML();
@@ -89,7 +95,15 @@ class FeedsXPathParserHTML {
           $result = (string)$result;
         }
       }
-      return implode(' ', $results);
+      if (count($results) == 1) {
+        return $results[0];
+      }
+      elseif (count($results) > 1) {
+        return $results;
+      }
+      else {
+        return '';
+      }
     }
   }
 }

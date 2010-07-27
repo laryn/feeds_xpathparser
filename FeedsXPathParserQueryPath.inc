@@ -11,13 +11,24 @@ class FeedsXPathParserQueryPath {
     $this->setSourcesQueries($mappings);
   }
 
-  public function parse($raw, $config) {
+  public function parse($raw) {
 
     $output = array();
     foreach (qp($raw, $config['context']) as $child) {
       $output[] = $child->html();
     }
     return $output;
+
+    $parsed_items = array();
+    foreach (qp($raw, $config['context']) as $child) {
+      $child = $child->html();
+      $parsed_item = array();
+      foreach ($this->sources as $source) {
+        $parsed_item[$source] = $this->getSourceElement($child, $source);
+      }
+      $parsed_items[] = $parsed_item;
+    }
+    return $parsed_items;
   }
 
   public function getSourceElement($item, $element_key) {

@@ -24,18 +24,26 @@ class FeedsXPathParserREGEX {
   public function parse($raw) {
     $success = @preg_match_all($this->config['context'], $raw, $matches);
 
-    if ($success !== FALSE) {
-
-      if (isset($matches[1])) {
-        return $matches[1];
-      }
-      else {
-        return $matches[0];
-      }
-    }
-    else {
+    if ($success === FALSE) {
       throw new Exception(t('There was an error with the regex: %query', array('%query' => $this->config['context'])));
     }
+
+    if (isset($matches[1])) {
+      $matches = $matches[1];
+    }
+    else {
+      $matches = $matches[0];
+    }
+    
+    $parsed_items = array();
+    foreach ($matches as $item) {
+      $parsed_item = array();
+      foreach ($this->sources as $source) {
+        $parsed_item[$source] = $this->getSourceElement($item, $source);
+      }
+      $parsed_items[] = $parsed_item;
+    }
+    return $parsed_items;
   }
 
   public function getSourceElement($item, $element_key) {
