@@ -153,9 +153,7 @@ class FeedsXPathParser extends FeedsParser {
       '#suffix'        => '</div></div>',
       '#process'       => array('ctools_dependent_process'),
       '#dependency'    => array(
-        'radio:feeds[FeedsXPathParser][parser_type]' => array(
-          'QueryPath',
-        )
+        'radio:feeds[FeedsXPathParser][parser_type]' => array('QueryPath')
       ),
     );
 

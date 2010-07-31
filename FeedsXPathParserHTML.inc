@@ -44,7 +44,7 @@ class FeedsXPathParserHTML {
     $xml = $this->setNamespaces($xml);
 
     $all_items = @$xml->xpath($this->config['context']);
-    if ($results === FALSE) {
+    if ($all_items === FALSE) {
       throw new Exception(t('There was an error with the XPath query: %query',
                             array('%query' => $this->sourceConfig['context'])));
     }
