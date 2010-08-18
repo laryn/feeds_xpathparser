@@ -87,9 +87,9 @@ class FeedsXPathParser extends FeedsParser {
     }
 
     ctools_include('dependent');
-
     $types = array_keys(_feeds_xpathparser_parser_types());
 
+    $types = array_combine($types, $types);
     if (!module_exists('querypath')) {
       unset($types['QueryPath']);
     }
@@ -97,7 +97,7 @@ class FeedsXPathParser extends FeedsParser {
     $form['parser_type'] = array(
       '#title'    => t('Select the parsing engine to use'),
       '#type'     => 'radios',
-      '#options'   => array_combine($types, $types),
+      '#options'   => $types,
       '#default_value' => isset($source_config['parser_type']) ?
                           $source_config['parser_type'] : 'HTML',
     );
