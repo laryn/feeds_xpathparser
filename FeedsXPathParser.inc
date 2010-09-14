@@ -190,4 +190,11 @@ class FeedsXPathParser extends FeedsParser {
 
     return $form;
   }
+
+  /**
+  * Override parent::getMappingSources().
+  */
+  public function getMappingSources() {
+    return FALSE;
+  }
 }
