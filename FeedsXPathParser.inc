@@ -242,7 +242,7 @@ class FeedsXPathParserBase extends FeedsParser {
           t('Fields <strong>!columns</strong> are mandatory and values in these columns are considered unique: only one entry per value in one of these columns will be created.',
             array('!columns' => implode(', ', $uniques)))),
       );
-    $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
+      $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
     }
     else {
       $form['sources']['help']['#value'] = '<div class="help">It is <strong>strongly</strong> recommended that you select at least one unique target.</div>';
@@ -336,7 +336,7 @@ function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state)
       $newest_xpath_mapping = $mapping;
     }
   }
-  if (!empty($mapping)) {
+  if (!empty($newest_xpath_mapping)) {
     list($a, $count) = explode(':', $newest_xpath_mapping['source']);
     $default_source = $a . ':' . '0';
     $label = $form['source']['#options'][$default_source];
