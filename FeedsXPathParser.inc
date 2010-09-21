@@ -19,18 +19,19 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
 
     $dom = new DOMDocument();
     $raw = $batch->getRaw();
+    /**
+     * This is currently unsupported.
+     */
     if ($this->source_config['tidy']['tidy']) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
         'join-styles'      => FALSE,
         'drop-empty-paras' => FALSE,
-        //'markup'           => FALSE,
         'wrap'             => 0,
         'tidy-mark'        => FALSE,
       );
       $raw = tidy_repair_string($raw, $config);
-      //dsm($raw);
     }
     $success = @$dom->loadHTML($raw);
 
