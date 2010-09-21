@@ -195,7 +195,6 @@ class FeedsXPathParserBase extends FeedsParser {
     if ($count > 1) {
       return $results;
     }
-    return;
   }
 
   /**
@@ -234,15 +233,19 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type' => 'fieldset',
     );
 
-    $items = array(
-      format_plural(count($uniques),
-        t('Field <strong>!column</strong> is mandatory and considered unique: only one item per !column value will be created.',
-          array('!column' => implode(', ', $uniques))),
-        t('Fields <strong>!columns</strong> are mandatory and values in these columns are considered unique: only one entry per value in one of these columns will be created.',
-          array('!columns' => implode(', ', $uniques)))),
-    );
-
+    if (!empty($uniques)) {
+      $items = array(
+        format_plural(count($uniques),
+          t('Field <strong>!column</strong> is mandatory and considered unique: only one item per !column value will be created.',
+            array('!column' => implode(', ', $uniques))),
+          t('Fields <strong>!columns</strong> are mandatory and values in these columns are considered unique: only one entry per value in one of these columns will be created.',
+            array('!columns' => implode(', ', $uniques)))),
+      );
     $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
+    }
+    else {
+      $form['sources']['help']['#value'] = '<div class="help">It is <strong>strongly</strong> recommended that you select at least one unique target.</div>';
+    }
 
     foreach ($mappings as $source => $target) {
       $form['sources'][$source] = array(
