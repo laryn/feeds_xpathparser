@@ -1,6 +1,6 @@
 ; $Id$
 name = Feeds XPath Parser
-description = Scrapes pages using XPath.
+description = Parse an XML or HTML document using XPath.
 package = Feeds
 dependencies[] = feeds
 core = 6.x
