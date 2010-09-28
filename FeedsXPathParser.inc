@@ -9,74 +9,6 @@
 
 define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=:\'"-\s[])\b(\w+)\b(?!:)(?![\(\s])/i');
 
-class FeedsXPathParserHTML extends FeedsXPathParserBase {
-
-  /**
-   * Implementation of FeedsParser::parse().
-   */
-  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
-    parent::parse($batch, $source);
-
-    $dom = new DOMDocument();
-    $raw = $batch->getRaw();
-    /**
-     * This is currently unsupported.
-     */
-    if ($this->source_config['tidy']['tidy']) {
-      $config = array(
-        'merge-divs'       => FALSE,
-        'merge-spans'      => FALSE,
-        'join-styles'      => FALSE,
-        'drop-empty-paras' => FALSE,
-        'wrap'             => 0,
-        'tidy-mark'        => FALSE,
-      );
-      $raw = tidy_repair_string($raw, $config);
-    }
-    $success = @$dom->loadHTML($raw);
-
-    if (!$success) {
-      throw new Exception(t('There was an error parsing the HTML document.'));
-    }
-
-    $xml = simplexml_import_dom($dom);
-    unset($dom);
-    $batch->setItems($this->query($xml));
-  }
-
-  /**
-   * Source form.
-   */
-  public function sourceForm($source_config) {
-    $form = parent::sourceForm($source_config);
-
-    return $form;
-  }
-}
-
-class FeedsXPathParserXML extends FeedsXPathParserBase {
-
-  /**
-   * Implementation of FeedsParser::parse().
-   */
-  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
-    parent::parse($batch, $source);
-    $raw = $batch->getRaw();
-
-    if ($this->source_config['tidy']['tidy']) {
-      $config = array(
-        'input-xml' => TRUE,
-        'wrap'      => 0,
-        'tidy-mark' => FALSE,
-      );
-      $raw = tidy_repair_string($raw, $config);
-    }
-
-    $xml = new SimpleXMLElement($raw);
-    $batch->setItems($this->query($xml));
-  }
-}
-
 /**
  * Base class for the HTML and XML parsers.
  */
@@ -317,6 +249,74 @@ class FeedsXPathParserBase extends FeedsParser {
     foreach ($values['sources'] as &$query) {
         $query = trim($query);
     }
+  }
+}
+
+class FeedsXPathParserHTML extends FeedsXPathParserBase {
+
+  /**
+   * Implementation of FeedsParser::parse().
+   */
+  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
+    parent::parse($batch, $source);
+
+    $dom = new DOMDocument();
+    $raw = $batch->getRaw();
+    /**
+     * This is currently unsupported.
+     */
+    if ($this->source_config['tidy']['tidy']) {
+      $config = array(
+        'merge-divs'       => FALSE,
+        'merge-spans'      => FALSE,
+        'join-styles'      => FALSE,
+        'drop-empty-paras' => FALSE,
+        'wrap'             => 0,
+        'tidy-mark'        => FALSE,
+      );
+      $raw = tidy_repair_string($raw, $config);
+    }
+    $success = @$dom->loadHTML($raw);
+
+    if (!$success) {
+      throw new Exception(t('There was an error parsing the HTML document.'));
+    }
+
+    $xml = simplexml_import_dom($dom);
+    unset($dom);
+    $batch->setItems($this->query($xml));
+  }
+
+  /**
+   * Source form.
+   */
+  public function sourceForm($source_config) {
+    $form = parent::sourceForm($source_config);
+
+    return $form;
+  }
+}
+
+class FeedsXPathParserXML extends FeedsXPathParserBase {
+
+  /**
+   * Implementation of FeedsParser::parse().
+   */
+  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
+    parent::parse($batch, $source);
+    $raw = $batch->getRaw();
+
+    if ($this->source_config['tidy']['tidy']) {
+      $config = array(
+        'input-xml' => TRUE,
+        'wrap'      => 0,
+        'tidy-mark' => FALSE,
+      );
+      $raw = tidy_repair_string($raw, $config);
+    }
+
+    $xml = new SimpleXMLElement($raw);
+    $batch->setItems($this->query($xml));
   }
 }
 
