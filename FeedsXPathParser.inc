@@ -73,10 +73,8 @@ class FeedsXPathParserBase extends FeedsParser {
       }
     }
     // Perfom xpath query.
-    $results = $xml->xpath($query);
+    $results = @$xml->xpath($query);
 
-    // SimpleXMLElement::xpath doesn't throw warnings or raise exceptions on
-    // errors, it simply returns FALSE.
     if ($results === FALSE) {
       throw new Exception(t('There was an error with the XPath query: <em>%query</em>', array('%query' => $query)));
     }
@@ -90,7 +88,7 @@ class FeedsXPathParserBase extends FeedsParser {
    *   A  SimpleXMLElement from the context array.
    * @param $query
    *   An XPath query.
-   * @ $source
+   * @param $source
    *   The name of the source for this query.
    * @return array
    *   An array containing the results of the query.
@@ -100,10 +98,10 @@ class FeedsXPathParserBase extends FeedsParser {
       return;
     }
     $results = $this->namespacedXPathQuery($item, $query);
-    unset($xml);
+    unset($item);
     /**
      * Iterate through the results of the xpath query.  If this source is
-     * configured to return raw xml make it so.
+     * configured to return raw xml, make it so.
      */
     foreach ($results as &$result) {
       if (in_array($source, $this->rawXML)) {
@@ -116,10 +114,7 @@ class FeedsXPathParserBase extends FeedsParser {
 
     /**
      * If their is one result, return it directly.  If there is more than one,
-     * return the array. If there are no results return an empty string.
-     *
-     * @TODO: Determine if an empty string is appropriate. Add in some kind of check
-     *   that makes the title only return one result (maybe).
+     * return the array.
      */
     $count = count($results);
     if ($count == 1) {
@@ -175,9 +170,6 @@ class FeedsXPathParserBase extends FeedsParser {
             array('!columns' => implode(', ', $uniques)))),
       );
       $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
-    }
-    else {
-      $form['sources']['help']['#value'] = '<div class="help">It is <strong>strongly</strong> recommended that you select at least one unique target.</div>';
     }
 
     foreach ($mappings as $source => $target) {
@@ -286,15 +278,6 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     unset($dom);
     $batch->setItems($this->query($xml));
   }
-
-  /**
-   * Source form.
-   */
-  public function sourceForm($source_config) {
-    $form = parent::sourceForm($source_config);
-
-    return $form;
-  }
 }
 
 class FeedsXPathParserXML extends FeedsXPathParserBase {
@@ -327,7 +310,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
  * but we have no idea how many to create with getMappingSources() because we
  * don't know how many targets there are going to be.
  *
- * Solution is to keep track in the form how many have been added.
+ * The solution is to keep track in the form how many have been added.
  */
 function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state) {
   $newest_xpath_mapping = array();

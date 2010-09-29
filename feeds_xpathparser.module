@@ -8,21 +8,11 @@ function feeds_xpathparser_feeds_plugins() {
   $path = drupal_get_path('module', 'feeds_xpathparser');
   $info = array();
 
-  $info['FeedsXPathParserBase'] = array(
-    'hidden'  => TRUE,
-    'handler' => array(
-      'parent' => 'FeedsParser', // A plugin needs to derive either directly or indirectly from FeedsFetcher, FeedsParser or FeedsProcessor.
-      'class'  => 'FeedsXPathParserBase',
-      'file'   => 'FeedsXPathParser.inc',
-      'path'   => $path,
-    ),
-  );
-
   $info['FeedsXPathParserHTML'] = array(
     'name'        => t('XPath HTML parser'),
     'description' => t('Parse HTML using XPath.'),
     'handler'     => array(
-      'parent' => 'FeedsXPathParserBase', // A plugin needs to derive either directly or indirectly from FeedsFetcher, FeedsParser or FeedsProcessor.
+      'parent' => 'FeedsParser',
       'class'  => 'FeedsXPathParserHTML',
       'file'   => 'FeedsXPathParser.inc',
       'path'   => $path,
@@ -33,7 +23,7 @@ function feeds_xpathparser_feeds_plugins() {
     'name'        => t('XPath XML parser'),
     'description' => t('Parse XML using XPath.'),
     'handler'     => array(
-      'parent' => 'FeedsXPathParserBase', // A plugin needs to derive either directly or indirectly from FeedsFetcher, FeedsParser or FeedsProcessor.
+      'parent' => 'FeedsParser',
       'class'  => 'FeedsXPathParserXML',
       'file'   => 'FeedsXPathParser.inc',
       'path'   => $path,
