@@ -7,7 +7,7 @@
  * Provides the HTML and XML Classes for Feeds XPath Parser.
  */
 
-define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=:\'"-\s[])\b(\w+)\b(?!:)(?![\(\s])/i');
+define('FEEDS_XPATH_PREG', '/(\/{0,2})(?<![=:\'"-])\b(\w+)\b(?!:)(?![\(])/i');
 
 /**
  * Base class for the HTML and XML parsers.
@@ -43,7 +43,6 @@ class FeedsXPathParserBase extends FeedsParser {
 
     $all_items = $this->namespacedXPathQuery($xml, $this->source_config['context']);
     unset($xml);
-
     $parsed_items = array();
     foreach ($all_items as $item) {
       $parsed_item = array();
@@ -99,6 +98,7 @@ class FeedsXPathParserBase extends FeedsParser {
    *   An array containing the results of the query.
    */
   protected function parseSourceElement($item, $query, $source) {
+
     if (empty($query)) {
       return;
     }
@@ -116,7 +116,6 @@ class FeedsXPathParserBase extends FeedsParser {
         $result = (string) $result;
       }
     }
-
     /**
      * If their is one result, return it directly.  If there is more than one,
      * return the array.
