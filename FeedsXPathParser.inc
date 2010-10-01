@@ -19,7 +19,12 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsImportBatch $batch, FeedsSource $source) {
     $this->source_config = $source->getConfigFor($this);
-    $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
+    if (isset($this->source_config['rawXML']) && is_array($this->source_config['rawXML'])) {
+      $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
+    }
+    else {
+      $this->rawXML = array();
+    }
   }
 
   /**
@@ -253,7 +258,11 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     parent::parse($batch, $source);
 
     $dom = new DOMDocument();
-    $raw = $batch->getRaw();
+    $raw = trim($batch->getRaw());
+
+    if (empty($raw)) {
+      return;
+    }
     /**
      * This is currently unsupported.
      */
@@ -287,7 +296,11 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
    */
   public function parse(FeedsImportBatch $batch, FeedsSource $source) {
     parent::parse($batch, $source);
-    $raw = $batch->getRaw();
+    $raw = trim($batch->getRaw());
+
+    if (empty($raw)) {
+      return;
+    }
 
     if ($this->source_config['tidy']['tidy']) {
       $config = array(
