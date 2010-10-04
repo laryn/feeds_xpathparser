@@ -66,11 +66,20 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   private function namespacedXPathQuery($xml, $query) {
 
+    static $modified_queries = array();
+
     foreach ($this->namespaces as $prefix => $namespace) {
       if ($prefix === '') {
         $xml->registerXPathNamespace('__default__', $namespace);
         // Replace all the elements without prefix by the default prefix.
-        $query = preg_replace(FEEDS_XPATH_PREG, '$1__default__:$2', $query);
+        if (!isset($modified_queries[$query])) {
+          $mod_query = $this->addDefaultNamespace($query);
+          $modified_queries[$query] = $mod_query;
+          $query = $mod_query;
+        }
+        else {
+          $query = $modified_queries[$query];
+        }
       }
       else {
         $xml->registerXPathNamespace($prefix, $namespace);
@@ -83,6 +92,14 @@ class FeedsXPathParserBase extends FeedsParser {
       throw new Exception(t('There was an error with the XPath query: <em>%query</em>', array('%query' => $query)));
     }
     return $results;
+  }
+
+  /**
+   * Normalizes XPath queries, adding the default namespace.
+   *
+   */
+  private function addDefaultNamespace($query) {
+    return feeds_xpathparser_parse_xpath($query);
   }
 
   /**
@@ -339,4 +356,111 @@ function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state)
     $form['source']['#options'][$a . ':' . ++$count] = $label;
   }
   return $form;
+}
+
+function feeds_xpathparser_parse_xpath($query) {
+    $exp = preg_replace('/\s*=\s*/', ' = ', $query);
+    $exp = preg_replace('/\s*\(\s*/', '( ', $exp);
+    $exp = preg_replace('/\s*\)\s*/', ' ) ', $exp);
+    $exp = preg_replace('/\s*\]\s*/', ' ] ', $exp);
+    $exp = preg_replace('/\s*\[\s*/', ' [ ', $exp);
+    $exp = preg_replace('/\s*,\s*/', ', ', $exp);
+    return _feeds_xpathparser_parse_xpath($exp);
+}
+
+function _feeds_xpathparser_parse_xpath($query) {
+  $inside = explode(' ', $query);
+  $string = FALSE;  //This lets us know when we're inside a 'string'.
+  $comma = FALSE; //This is if the item we're processing ends with a comma.
+  $t = '';
+
+  foreach ($inside as $i) {
+    $end = strlen($i) - 1;
+    $end_char = $i[$end];
+    $first_char = $i[0];
+
+    if ($string) {
+      if ($i === '') {
+        $t .= ' ';
+        continue;
+      }
+      if ($end_char == "'" || $end_char == '"') {
+        $string = FALSE;
+      }
+      $t .= $i;
+      continue;
+    }
+
+    if ($i === '') {
+      continue;
+    }
+
+    if ($end_char == ',') {
+      $i = rtrim($i, ',');
+      $comma = TRUE;
+    }
+
+    if ($first_char == "'" || $first_char == '"') {
+      $string = TRUE;
+      $t .= ' ' . $i;
+      if (strpos($i, "'", 1) === $end || strpos($i, '"', 1) === $end) {
+        $string = FALSE;
+      }
+    }
+
+    elseif (strpos($i, '/') !== FALSE) {
+      $t .= feeds_xpathparser_parse_query($i);
+    }
+
+    elseif ($i == '=' || $i == ')' || $end_char == '(' ||
+            is_numeric($i) || $first_char == '@' || $i == '[' || $i == ']') {
+      $t .= $i;
+    }
+
+    elseif (strtolower($i) == 'or' || strtolower($i) == 'and' || $i == '|') {
+      $t .= ' ' . $i . ' ';
+    }
+
+    else {
+      $t .= '__default__:' . $i;
+    }
+    if ($comma) {
+      $t .= ',';
+      $comma = FALSE;
+    }
+  }
+  return $t;
+}
+
+function feeds_xpathparser_parse_query($query) {
+  $exp = explode('/', $query);
+  $str = '';
+
+  foreach ($exp as $out) {
+    if ($out === '') {
+      $str .= '/';
+      continue;
+    }
+
+    $str .= '/';
+
+    if (strpos($out, ':') !== FALSE) {
+      $str .= $out;
+    }
+
+    else {
+      $str .= '__default__:' . $out;
+    }
+  }
+
+  $str = ltrim($str, '/');
+
+  if (strpos($query, '//') === 0) {
+    $str = '//' . $str;
+  }
+
+  elseif (strpos($query, '/') === 0) {
+    $str = '/' . $str;
+  }
+  return $str;
 }
