@@ -193,6 +193,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#required'      => TRUE,
       '#description'   => t('This is the base query, all other queries will run in this context.'),
       '#default_value' => isset($source_config['context']) ? $source_config['context'] : '',
+      '#maxlength'     => 1024,
     );
 
     $form['sources'] = array(
@@ -216,6 +217,7 @@ class FeedsXPathParserBase extends FeedsParser {
         '#title'         => $target,
         '#description'   => t('The XPath query to run.'),
         '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
+        '#maxlength'     => 1024,
       );
     }
 
