@@ -153,16 +153,12 @@ class FeedsXPathParserBase extends FeedsParser {
       }
     }
     /**
-     * If their is one result, return it directly.  If there is more than one,
-     * return the array.
+     * If there is one result, return it directly.
      */
-    $count = count($results);
-    if ($count == 1) {
+    if (count($results) === 1) {
       return $results[0];
     }
-    if ($count > 1) {
-      return $results;
-    }
+    return $results;
   }
 
   /**
@@ -298,6 +294,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     $raw = trim($batch->getRaw());
 
     if (empty($raw)) {
+      drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
       return;
     }
     /**
@@ -311,6 +308,8 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
         'drop-empty-paras' => FALSE,
         'wrap'             => 0,
         'tidy-mark'        => FALSE,
+        'escape-cdata'     => TRUE,
+        'word-2000'        => TRUE,
       );
       $raw = tidy_repair_string($raw, $config);
     }
@@ -336,6 +335,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
     $raw = trim($batch->getRaw());
 
     if (empty($raw)) {
+      drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
       return;
     }
 
