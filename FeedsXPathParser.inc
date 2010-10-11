@@ -14,6 +14,7 @@ class FeedsXPathParserBase extends FeedsParser {
 
   protected $modified_queries = array();
   protected $rawXML = array();
+  protected $debug = array();
 
   /**
    * Implementation of FeedsParser::parse().
@@ -22,6 +23,9 @@ class FeedsXPathParserBase extends FeedsParser {
     $this->source_config = $source->getConfigFor($this);
     if (isset($this->source_config['rawXML']) && is_array($this->source_config['rawXML'])) {
       $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
+    }
+    if (isset($this->source_config['exp']['debug']) && is_array($this->source_config['exp']['debug'])) {
+      $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
     }
   }
 
@@ -40,6 +44,7 @@ class FeedsXPathParserBase extends FeedsParser {
     $this->namespaces = $xml->getNamespaces(TRUE);
 
     $all_items = $this->namespacedXPathQuery($xml, $this->source_config['context']);
+    $this->debug($all_items, 'context');
     unset($xml);
     $parsed_items = array();
     foreach ($all_items as $item) {
@@ -99,17 +104,32 @@ class FeedsXPathParserBase extends FeedsParser {
       $orig_query = array_search($query, $this->modified_queries);
       // If we didn't modify the query then it won't be in modified_queries.
       $orig_query = $orig_query ?: $query;
-      drupal_set_message(t("There was an error with the XPath query: %query.<br>
-                           Libxml returned the message: %message, with the error code: %code.",
-                           array('%query' => $orig_query,
-                                 '%message' => trim($error->message),
-                                 '%code' => $error->code)),
-                         'error', FALSE);
+      if ($this->source_config['exp']['errors']) {
+       drupal_set_message(
+        t("There was an error with the XPath query: %query.<br>
+          Libxml returned the message: %message, with the error code: %code.",
+          array('%query' => $orig_query,
+                '%message' => trim($error->message),
+                '%code' => $error->code)),
+        'error',
+        FALSE);
+      }
     }
     if ($results === FALSE) {
       return array();
     }
     return $results;
+  }
+
+  private function debug($item, $source) {
+    if (in_array($source, $this->debug)) {
+      $o = '<ul>';
+      foreach ($item as $i) {
+        $o .= '<li>' . check_plain($i->asXML()) . '</li>';
+      }
+      $o .= '</ul>';
+      drupal_set_message($source . ':' . $o);
+    }
   }
 
   /**
@@ -136,10 +156,11 @@ class FeedsXPathParserBase extends FeedsParser {
   protected function parseSourceElement($item, $query, $source) {
 
     if (empty($query)) {
-      return '';
+      return;
     }
     $results = $this->namespacedXPathQuery($item, $query);
     unset($item);
+    $this->debug($results, $source);
     /**
      * Iterate through the results of the xpath query.  If this source is
      * configured to return raw xml, make it so.
@@ -153,10 +174,14 @@ class FeedsXPathParserBase extends FeedsParser {
       }
     }
     /**
-     * If there is one result, return it directly.
+     * If there is one result, return it directly.  If there are no results,
+     * return.
      */
     if (count($results) === 1) {
       return $results[0];
+    }
+    if (count($results) === 0) {
+      return;
     }
     return $results;
   }
@@ -226,22 +251,34 @@ class FeedsXPathParserBase extends FeedsParser {
       '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
     );
 
+    $form['exp'] = array(
+      '#type' => 'fieldset',
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+      '#title' => 'Experimental',
+    );
+
+    $form['exp']['errors'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Show error messages.'),
+      '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : FALSE,
+    );
+
     if (extension_loaded('tidy')) {
-      $form['experimental'] = array(
-        '#type' => 'fieldset',
-        '#collapsible' => TRUE,
-        '#collapsed' => TRUE,
-        '#title' => 'Experimental',
-      );
-      $form['experimental']['tidy'] = array(
-        '#type'          => 'checkboxes',
+      $form['exp']['tidy'] = array(
+        '#type'          => 'checkbox',
         '#title'         => t('Use Tidy'),
         '#description'   => t('The Tidy PHP extension has been detected.
                               Slect this to clean the markup before parsing.'),
-        '#options'       => array('tidy' => ''),
-        '#default_value' => isset($source_config['tidy']) ? $source_config['tidy'] : array(),
+        '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : FALSE,
       );
     }
+    $form['exp']['debug'] = array(
+      '#type'    => 'checkboxes',
+      '#title'   => t('Debug Query'),
+      '#options' => array_merge(array('context' => 'context'), $mappings),
+      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : array(),
+    );
 
     return $form;
   }
@@ -262,7 +299,16 @@ class FeedsXPathParserBase extends FeedsParser {
    * Define defaults.
    */
   public function sourceDefaults() {
-    return array();
+    return array(
+      'sources' => array(),
+      'rawXML'  => array(),
+      'context' => '',
+      'exp'     => array(
+        'errors' => FALSE,
+        'tidy'   => FALSE,
+        'debug'   => array(),
+      ),
+    );
   }
 
   /**
@@ -300,7 +346,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     /**
      * This is currently unsupported.
      */
-    if ($this->source_config['tidy']['tidy']) {
+    if ($this->source_config['exp']['tidy']) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
@@ -313,8 +359,12 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       );
       $raw = tidy_repair_string($raw, $config);
     }
-    $success = @$dom->loadHTML($raw);
-
+    if ($this->source_config['exp']['errors']) {
+      $success = $dom->loadHTML($raw);
+    }
+    else {
+      $success = @$dom->loadHTML($raw);
+    }
     if (!$success) {
       throw new Exception(t('There was an error parsing the HTML document.'));
     }
@@ -339,7 +389,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       return;
     }
 
-    if ($this->source_config['tidy']['tidy']) {
+    if ($this->source_config['exp']['tidy']) {
       $config = array(
         'input-xml' => TRUE,
         'wrap'      => 0,
@@ -379,6 +429,20 @@ function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state)
   return $form;
 }
 
+/**
+ * Pseudo-parser of XPath queries.  When an XML document has a default
+ * namespace this gets called so that adding the __default__ namepace where
+ * appropriate. Aren't we nice.
+ *
+ * @todo
+ *   Make this into a class so that we can save state on the object.
+ *   Write tests for this beasty.
+ *   Cleanup.
+ * @param $query
+ *   An xpath query string.
+ * @return string
+ *   An xpath query string with the __default__ namespace added.
+ */
 function feeds_xpathparser_parse_xpath($query) {
   $query = preg_replace('/\s+\(\s*/', '(', $query);
   $word_boundary = array('[', ']', '=', '(', ')', '.', '<', '>', '*', '!', '|', '/', ',', ' ');
