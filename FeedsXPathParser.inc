@@ -441,7 +441,7 @@ function _feeds_xpathparser_handle_word($word, $c ='', $axis = FALSE) {
 
   if (strpos($word, '::') !== FALSE) {
     $word = explode('::', $word, 2);
-    return $word[0] . '::' . handle_word($word[1], '::', $word[0]);
+    return $word[0] . '::' . feeds_xpathparser_parse_xpath($word[1]);
   }
 
   if (is_numeric($word) || $axis == 'attribute' || strpos($word, '@') === 0 ||
