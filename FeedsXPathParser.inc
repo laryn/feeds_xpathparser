@@ -97,6 +97,8 @@ class FeedsXPathParserBase extends FeedsParser {
 
     if ($error->level == LIBXML_ERR_ERROR) {
       $orig_query = array_search($query, $this->modified_queries);
+      // If we didn't modify the query then it won't be in modified_queries.
+      $orig_query = $orig_query ?: $query;
       drupal_set_message(t("There was an error with the XPath query: %query.<br>
                            Libxml returned the message: %message, with the error code: %code.",
                            array('%query' => $orig_query,
