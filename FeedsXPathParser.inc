@@ -19,8 +19,9 @@ class FeedsXPathParserBase extends FeedsParser {
   /**
    * Implementation of FeedsParser::parse().
    */
-  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
+  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
+    $state = $source->state(FEEDS_PARSE);
     if (isset($this->source_config['rawXML']) && is_array($this->source_config['rawXML'])) {
       $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
     }
@@ -100,7 +101,7 @@ class FeedsXPathParserBase extends FeedsParser {
     libxml_clear_errors();
     libxml_use_internal_errors($use_errors);
 
-    if ($error->level == LIBXML_ERR_ERROR) {
+    if (is_object($error) && $error->level == LIBXML_ERR_ERROR) {
       $orig_query = array_search($query, $this->modified_queries);
       // If we didn't modify the query then it won't be in modified_queries.
       $orig_query = $orig_query ?: $query;
@@ -255,7 +256,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type' => 'fieldset',
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
-      '#title' => 'Experimental',
+      '#title' => 'XPath Options',
     );
 
     $form['exp']['errors'] = array(
@@ -333,11 +334,11 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
   /**
    * Implementation of FeedsParser::parse().
    */
-  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
-    parent::parse($batch, $source);
+  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
+    parent::parse($source, $fetcher_result);
 
     $dom = new DOMDocument();
-    $raw = trim($batch->getRaw());
+    $raw = trim($fetcher_result->getRaw());
 
     if (empty($raw)) {
       drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
@@ -371,7 +372,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
 
     $xml = simplexml_import_dom($dom);
     unset($dom);
-    $batch->setItems($this->query($xml));
+    return new FeedsParserResult($this->query($xml));
   }
 }
 
@@ -380,9 +381,9 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
   /**
    * Implementation of FeedsParser::parse().
    */
-  public function parse(FeedsImportBatch $batch, FeedsSource $source) {
-    parent::parse($batch, $source);
-    $raw = trim($batch->getRaw());
+  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
+    parent::parse($source, $fetcher_result);
+    $raw = trim($fetcher_result->getRaw());
 
     if (empty($raw)) {
       drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
@@ -399,7 +400,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
     }
 
     $xml = new SimpleXMLElement($raw);
-    $batch->setItems($this->query($xml));
+    return new FeedsParserResult($this->query($xml));
   }
 }
 
@@ -412,7 +413,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
  *
  * The solution is to keep track in the form how many have been added.
  */
-function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state) {
+function feeds_xpathparser_form_feeds_ui_mapping_form_alter(&$form, &$form_state) {
   $newest_xpath_mapping = array();
   foreach ($form['#mappings'] as $mapping) {
     if (strpos($mapping['source'], 'xpathparser:') === 0) {
@@ -426,7 +427,6 @@ function feeds_xpathparser_form_feeds_ui_mapping_form_alter($form, &$form_state)
     unset($form['source']['#options'][$default_source]);
     $form['source']['#options'][$a . ':' . ++$count] = $label;
   }
-  return $form;
 }
 
 /**
@@ -505,7 +505,7 @@ function _feeds_xpathparser_handle_word($word, $c ='', $axis = FALSE) {
 
   if (strpos($word, '::') !== FALSE) {
     $word = explode('::', $word, 2);
-    return $word[0] . '::' . feeds_xpathparser_parse_xpath($word[1]);
+    return $word[0] . '::' . _feeds_xpathparser_handle_word($word[1], '::', $word[0]);
   }
 
   if (is_numeric($word) || $axis == 'attribute' || strpos($word, '@') === 0 ||
