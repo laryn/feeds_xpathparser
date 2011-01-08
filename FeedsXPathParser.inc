@@ -21,7 +21,14 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
-    $state = $source->state(FEEDS_PARSE);
+    $mappings = feeds_importer($this->id)->processor->config['mappings'];
+    $this->mappings = array();
+    foreach ($mappings as $mapping) {
+      if (strpos($mapping['source'], 'xpathparser:') === 0) {
+        $this->mappings[$mapping['source']] = $mapping['target'];
+      }
+    }
+
     if (isset($this->source_config['rawXML']) && is_array($this->source_config['rawXML'])) {
       $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
     }
@@ -36,6 +43,7 @@ class FeedsXPathParserBase extends FeedsParser {
    *
    * @param $xml
    *   A SimpleXMLElement object.
+   *
    * @return array
    *   Returns a structured array suitable for adding to a batch object with
    *   $batch->setItems().
@@ -49,9 +57,14 @@ class FeedsXPathParserBase extends FeedsParser {
     unset($xml);
     $parsed_items = array();
     foreach ($all_items as $item) {
-      $parsed_item = array();
+      $parsed_item = $variables = array();
       foreach ($this->source_config['sources'] as $source => $query) {
-        $parsed_item[$source] = $this->parseSourceElement($item, $query, $source);
+        $query = strtr($query, $variables);
+        $result = $this->parseSourceElement($item, $query, $source);
+        if (!is_array($result)) {
+          $variables['$' . $this->mappings[$source]] = $result;
+        }
+        $parsed_item[$source] = $result;
       }
       $parsed_items[] = $parsed_item;
     }
@@ -63,8 +76,10 @@ class FeedsXPathParserBase extends FeedsParser {
    *
    * @param $xml
    *   The XML element to execute the query on.
+   *
    * @param $query
    *   An XPath query.
+   *
    * @return array
    *   An array containing the results of the query.
    */
@@ -87,31 +102,20 @@ class FeedsXPathParserBase extends FeedsParser {
         $xml->registerXPathNamespace($prefix, $namespace);
       }
     }
-    /**
-     * Here we set libxml_use_internal_errors to TRUE because depending on the
-     * libxml version, $xml->xpath() might return FALSE or an empty array() when
-     * a query doesn't match.
-     */
-    $use_errors = libxml_use_internal_errors(TRUE);
 
-    // Perfom xpath query.
-    $results = $xml->xpath($query);
-
-    $error = libxml_get_last_error();
-    libxml_clear_errors();
-    libxml_use_internal_errors($use_errors);
+    list($results, $error) = $this->_query($xml, $query);
 
     if (is_object($error) && $error->level == LIBXML_ERR_ERROR) {
       $orig_query = array_search($query, $this->modified_queries);
       // If we didn't modify the query then it won't be in modified_queries.
-      $orig_query = $orig_query ?: $query;
+      $orig_query = $orig_query ? $orig_query : $query;
       if ($this->source_config['exp']['errors']) {
        drupal_set_message(
         t("There was an error with the XPath query: %query.<br>
           Libxml returned the message: %message, with the error code: %code.",
-          array('%query' => $orig_query,
+          array('%query'   => $orig_query,
                 '%message' => trim($error->message),
-                '%code' => $error->code)),
+                '%code'    => $error->code)),
         'error',
         FALSE);
       }
@@ -135,11 +139,10 @@ class FeedsXPathParserBase extends FeedsParser {
 
   /**
    * Normalizes XPath queries, adding the default namespace.
-   *
    */
   private function addDefaultNamespace($query) {
-    $query = feeds_xpathparser_parse_xpath($query);
-    return $query;
+    $parser = new FeedsXPathQueryParser($query);
+    return $parser->getQuery();
   }
 
   /**
@@ -147,10 +150,13 @@ class FeedsXPathParserBase extends FeedsParser {
    *
    * @param $item
    *   A  SimpleXMLElement from the context array.
+   *
    * @param $query
    *   An XPath query.
+   *
    * @param $source
    *   The name of the source for this query.
+   *
    * @return array
    *   An array containing the results of the query.
    */
@@ -193,10 +199,10 @@ class FeedsXPathParserBase extends FeedsParser {
   public function sourceForm($source_config) {
     $form = array();
     $form['#weight'] = -10;
+    $form['#tree'] = TRUE;
 
     $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
     $uniques = $mappings = array();
-
     foreach ($mappings_ as $mapping) {
       if (strpos($mapping['source'], 'xpathparser:') === 0) {
         $mappings[$mapping['source']] = $mapping['target'];
@@ -207,7 +213,7 @@ class FeedsXPathParserBase extends FeedsParser {
     }
 
     if (empty($mappings)) {
-      $form['error_message']['#value'] = 'FeedsXPathParser: No mappings were defined.';
+      $form['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
       return $form;
     }
 
@@ -235,6 +241,7 @@ class FeedsXPathParserBase extends FeedsParser {
       $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
     }
 
+    $variables = array();
     foreach ($mappings as $source => $target) {
       $form['sources'][$source] = array(
         '#type'          => 'textfield',
@@ -243,6 +250,10 @@ class FeedsXPathParserBase extends FeedsParser {
         '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
         '#maxlength'     => 1024,
       );
+      if (!empty($variables)) {
+        $form['sources'][$source]['#description'] .= '<br>' . t('The variables '. implode(', ', $variables). ' are availliable for replacement.');
+      }
+      $variables[] = '$' . $target;
     }
 
     $form['rawXML'] = array(
@@ -256,7 +267,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type' => 'fieldset',
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
-      '#title' => 'XPath Options',
+      '#title' => 'XPath Parser Options',
     );
 
     $form['exp']['errors'] = array(
@@ -270,10 +281,11 @@ class FeedsXPathParserBase extends FeedsParser {
         '#type'          => 'checkbox',
         '#title'         => t('Use Tidy'),
         '#description'   => t('The Tidy PHP extension has been detected.
-                              Slect this to clean the markup before parsing.'),
+                              Select this to clean the markup before parsing.'),
         '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : FALSE,
       );
     }
+
     $form['exp']['debug'] = array(
       '#type'    => 'checkboxes',
       '#title'   => t('Debug Query'),
@@ -285,29 +297,33 @@ class FeedsXPathParserBase extends FeedsParser {
   }
 
   /**
-  * Override parent::getMappingSources().
-  */
-  public function getMappingSources() {
-    return array(
-      'xpathparser:0' => array(
-        'name' => t('XPath Expression'),
-        'description' => t('Allows you to configure an XPath expression that will populate this field.'),
-      ),
-    ) + parent::getMappingSources();
+   * Override parent::configForm().
+   */
+  public function configForm(&$form_state) {
+    $form = $this->sourceForm($this->config);
+    $form['context']['#required'] = FALSE;
+    return $form;
   }
 
   /**
    * Define defaults.
    */
   public function sourceDefaults() {
+    return $this->config;
+  }
+
+  /**
+   * Define defaults.
+   */
+  public function configDefaults() {
     return array(
       'sources' => array(),
       'rawXML'  => array(),
       'context' => '',
-      'exp'     => array(
+      'exp' => array(
         'errors' => FALSE,
         'tidy'   => FALSE,
-        'debug'   => array(),
+        'debug'  => array(),
       ),
     );
   }
@@ -318,14 +334,61 @@ class FeedsXPathParserBase extends FeedsParser {
    * Simply trims all XPath values from the form. That way when testing them
    * later we can be sure that there aren't any strings with spaces in them.
    *
+   * @todo
+   *   validate xpath queries?
+   *
    * @param &$values
    *   The values from the form to validate, passed by reference.
    */
   public function sourceFormValidate(&$values) {
     $values['context'] = trim($values['context']);
     foreach ($values['sources'] as &$query) {
-        $query = trim($query);
+      $query = trim($query);
     }
+  }
+
+  /**
+   * Override parent::sourceFormValidate().
+   */
+  public function configFormValidate(&$values) {
+    $this->sourceFormValidate($values);
+  }
+
+  /**
+   * Here we set libxml_use_internal_errors to TRUE because depending on the
+   * libxml version, $xml->xpath() might return FALSE or an empty array() when
+   * a query doesn't match.
+   */
+  private function _query($xml, $query) {
+    $use_errors = libxml_use_internal_errors(TRUE);
+
+    // Perfom xpath query.
+    $results = $xml->xpath($query);
+
+    $error = libxml_get_last_error();
+    libxml_clear_errors();
+    libxml_use_internal_errors($use_errors);
+    return array($results, $error);
+  }
+
+  /**
+  * Override parent::getMappingSources().
+  */
+  public function getMappingSources() {
+    $xpath_source = array(
+      'xpathparser:0' => array(
+        'name' => t('XPath Expression'),
+        'description' => t('Allows you to configure an XPath expression that will populate this field.'),
+      ),
+    );
+
+    $sources = parent::getMappingSources();
+    // Older versions of Feeds return FALSE here.
+    if (is_array($sources)) {
+      return $sources + $xpath_source;
+    }
+
+    return $xpath_source;
   }
 }
 
@@ -347,7 +410,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     /**
      * This is currently unsupported.
      */
-    if ($this->source_config['exp']['tidy']) {
+    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
@@ -432,86 +495,122 @@ function feeds_xpathparser_form_feeds_ui_mapping_form_alter(&$form, &$form_state
 /**
  * Pseudo-parser of XPath queries.  When an XML document has a default
  * namespace this gets called so that adding the __default__ namepace where
- * appropriate. Aren't we nice.
+ * appropriate. Aren't we nice?
  *
  * @todo
- *   Make this into a class so that we can save state on the object.
- *   Write tests for this beasty.
  *   Cleanup.
  * @param $query
  *   An xpath query string.
  * @return string
  *   An xpath query string with the __default__ namespace added.
  */
-function feeds_xpathparser_parse_xpath($query) {
-  $query = preg_replace('/\s+\(\s*/', '(', $query);
-  $word_boundary = array('[', ']', '=', '(', ')', '.', '<', '>', '*', '!', '|', '/', ',', ' ');
-  $in_quotes = FALSE;
-  $quote_char = '';
-  $word = '';
-  $output = '';
-  $prev_boundary = '';
+class FeedsXPathQueryParser {
+  function __construct($query) {
+    $this->query = preg_replace('/\s+\(\s*/', '(', $query);
 
-  for ($i=0; $i < strlen($query); $i++) {
-    $c = $query[$i];
+    $this->word_boundaries = array(
+      '[', ']', '=', '(', ')', '.', '<', '>', '*', '!', '|', '/', ',', ' ', ':',
+    );
 
-    if ($c == '"' | $c == "'") {
-      if ($in_quotes && $c == $quote_char) {
-        $in_quotes = FALSE;
-        $word .= $c;
-        $output .= $word;
-        $word = '';
+    $this->in_quotes = FALSE;
+    $this->quote_char = '';
+    $this->word = '';
+    $this->output = '';
+    $this->prev_boundary = '';
+    $this->axis = '';
+    $this->skip_next_word = FALSE;
+    $this->start();
+  }
+
+  function start() {
+    for ($i=0; $i < strlen($this->query); $i++) {
+      $this->i = $i;
+      $c = $this->query[$i];
+
+      if ($c == '"' || $c == "'") {
+        $this->handle_quote($c);
+        continue;
       }
-      elseif (!$in_quotes) {
-        $in_quotes = TRUE;
-        $output .= _feeds_xpathparser_handle_word($word);
-        $word = $c;
-        $quote_char = $c;
+
+      if ($this->in_quotes) {
+        $this->word .= $c;
+        continue;
+      }
+
+      if (in_array($c, $this->word_boundaries)) {
+        $this->handle_word_boundary($c);
       }
       else {
-        $word .= $c;
+        $this->word .= $c;
       }
-      continue;
     }
+    $this->handle_word();
+  }
 
-    if ($in_quotes) {
-      $word .= $c;
-      continue;
+  function handle_quote($c) {
+    if ($this->in_quotes && $c == $this->quote_char) {
+      $this->in_quotes = FALSE;
+      $this->word .= $c;
+      $this->output .= $this->word;
+      $this->word = '';
     }
-
-    if (in_array($c, $word_boundary)) {
-      if (in_array($word, array('div', 'or', 'and', 'mod')) && $prev_boundary == ' ') {
-        $output .= $word;
-      }
-      else {
-        $output .= _feeds_xpathparser_handle_word($word, $c);
-      }
-      $output .= $c;
-      $word = '';
-      $prev_boundary = $c;
+    elseif (!$this->in_quotes) {
+      $this->in_quotes = TRUE;
+      $this->handle_word();
+      $this->word = $c;
+      $this->quote_char = $c;
     }
     else {
-      $word .= $c;
+      $this->word .= $c;
     }
   }
-  return $output . _feeds_xpathparser_handle_word($word);
-}
 
-function _feeds_xpathparser_handle_word($word, $c ='', $axis = FALSE) {
-
-  if (strlen($word) === 0) {
-    return '';
+  function handle_word_boundary($c) {
+    if (in_array($this->word, array('div', 'or', 'and', 'mod')) &&
+        $this->prev_boundary == ' ' && $c == ' ') {
+      $this->output .= $this->word;
+    }
+    else {
+      $this->handle_word($c);
+    }
+    $this->output .= $c;
+    $this->word = '';
+    $this->prev_boundary = $c;
   }
 
-  if (strpos($word, '::') !== FALSE) {
-    $word = explode('::', $word, 2);
-    return $word[0] . '::' . _feeds_xpathparser_handle_word($word[1], '::', $word[0]);
+  function handle_word($c='') {
+    if ($this->word == '') {
+      return;
+    }
+    if ($c == ':' && $this->query[$this->i + 1] == ':') {
+      $this->axis = $this->word;
+    }
+    if ($c == ':' && $this->query[$this->i-1] != ':'  &&
+        $this->query[$this->i+1] != ':') {
+      $this->output .= $this->word;
+      $this->skip_next_word = TRUE;
+      return;
+    }
+
+    if ($this->skip_next_word) {
+      $this->skip_next_word = FALSE;
+      $this->output .= $this->word;
+      return;
+    }
+
+    if (is_numeric($this->word) ||
+        $this->axis == 'attribute' ||
+        strpos($this->word, '@') === 0 ||
+        $c == '(' ||
+        $c == ':') {
+      $this->output .= $this->word;
+      return;
+    }
+
+    $this->output .= '__default__:' . $this->word;
   }
 
-  if (is_numeric($word) || $axis == 'attribute' || strpos($word, '@') === 0 ||
-      $c == '(' || strpos($word, ':') !== FALSE) {
-    return $word;
+  function getQuery() {
+    return $this->output;
   }
-
-  return '__default__:' . $word;
 }
