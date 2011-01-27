@@ -29,10 +29,12 @@ class FeedsXPathParserBase extends FeedsParser {
       }
     }
 
-    if (isset($this->source_config['rawXML']) && is_array($this->source_config['rawXML'])) {
+    if (isset($this->source_config['rawXML']) &&
+        is_array($this->source_config['rawXML'])) {
       $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
     }
-    if (isset($this->source_config['exp']['debug']) && is_array($this->source_config['exp']['debug'])) {
+    if (isset($this->source_config['exp']['debug'])
+        && is_array($this->source_config['exp']['debug'])) {
       $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
     }
   }
@@ -52,19 +54,27 @@ class FeedsXPathParserBase extends FeedsParser {
     // Fetch the namespaces defined in the XML document.
     $this->namespaces = $xml->getNamespaces(TRUE);
 
+    $this->addDefaultNamespace($xml, $this->source_config['context']);
     $all_items = $this->namespacedXPathQuery($xml, $this->source_config['context']);
     $this->debug($all_items, 'context');
+
     unset($xml);
     $parsed_items = array();
     foreach ($all_items as $item) {
       $parsed_item = $variables = array();
       foreach ($this->source_config['sources'] as $source => $query) {
+        $this->addDefaultNamespace($item, $query);
         $query = strtr($query, $variables);
         $result = $this->parseSourceElement($item, $query, $source);
-        if (!is_array($result)) {
-          $variables['$' . $this->mappings[$source]] = $result;
+        if (isset($result)) {
+          if (!is_array($result)) {
+            $variables['$' . $this->mappings[$source]] = $result;
+          }
+          else {
+            $variables['$' . $this->mappings[$source]] = '';
+          }
+          $parsed_item[$source] = $result;
         }
-        $parsed_item[$source] = $result;
       }
       $parsed_items[] = $parsed_item;
     }
@@ -85,38 +95,28 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   private function namespacedXPathQuery($xml, $query) {
 
-    foreach ($this->namespaces as $prefix => $namespace) {
-      if ($prefix === '') {
-        $xml->registerXPathNamespace('__default__', $namespace);
-        // Replace all the elements without prefix by the default prefix.
-        if (!isset($this->modified_queries[$query])) {
-          $mod_query = $this->addDefaultNamespace($query);
-          $this->modified_queries[$query] = $mod_query;
-          $query = $mod_query;
-        }
-        else {
-          $query = $this->modified_queries[$query];
-        }
-      }
-      else {
-        $xml->registerXPathNamespace($prefix, $namespace);
-      }
-    }
-
     list($results, $error) = $this->_query($xml, $query);
 
-    if (is_object($error) && $error->level == LIBXML_ERR_ERROR) {
-      $orig_query = array_search($query, $this->modified_queries);
-      // If we didn't modify the query then it won't be in modified_queries.
-      $orig_query = $orig_query ? $orig_query : $query;
-      if ($this->source_config['exp']['errors']) {
+    if (is_object($error) && $this->source_config['exp']['errors']) {
+
+      if ($error->level == LIBXML_ERR_ERROR) {
        drupal_set_message(
         t("There was an error with the XPath query: %query.<br>
           Libxml returned the message: %message, with the error code: %code.",
-          array('%query'   => $orig_query,
+          array('%query'   => $query,
                 '%message' => trim($error->message),
                 '%code'    => $error->code)),
         'error',
+        FALSE);
+      }
+      elseif ($error->level == LIBXML_ERR_WARNING) {
+       drupal_set_message(
+        t("There was an error with the XPath query: %query.<br>
+          Libxml returned the message: %message, with the error code: %code.",
+          array('%query'   => $query,
+                '%message' => trim($error->message),
+                '%code'    => $error->code)),
+        'warning',
         FALSE);
       }
     }
@@ -140,9 +140,25 @@ class FeedsXPathParserBase extends FeedsParser {
   /**
    * Normalizes XPath queries, adding the default namespace.
    */
-  private function addDefaultNamespace($query) {
-    $parser = new FeedsXPathQueryParser($query);
-    return $parser->getQuery();
+  private function addDefaultNamespace($xml, &$query) {
+    foreach ($this->namespaces as $prefix => $namespace) {
+      if ($prefix === '') {
+        $xml->registerXPathNamespace('__default__', $namespace);
+        // Replace all the elements without prefix by the default prefix.
+        if (!isset($this->modified_queries[$query])) {
+          $parser = new FeedsXPathQueryParser($query);
+          $mod_query = $parser->getQuery();
+          $this->modified_queries[$query] = $mod_query;
+          $query = $mod_query;
+        }
+        else {
+          $query = $this->modified_queries[$query];
+        }
+      }
+      else {
+        $xml->registerXPathNamespace($prefix, $namespace);
+      }
+    }
   }
 
   /**
@@ -238,7 +254,7 @@ class FeedsXPathParserBase extends FeedsParser {
           t('Fields <strong>!columns</strong> are mandatory and values in these columns are considered unique: only one entry per value in one of these columns will be created.',
             array('!columns' => implode(', ', $uniques)))),
       );
-      $form['sources']['help']['#value'] = '<div class="help">' . theme('item_list', $items) . '</div>';
+      $form['sources']['help']['#markup'] = '<div class="help">' . theme('item_list', array('items' => $items)) . '</div>';
     }
 
     $variables = array();
@@ -375,20 +391,12 @@ class FeedsXPathParserBase extends FeedsParser {
   * Override parent::getMappingSources().
   */
   public function getMappingSources() {
-    $xpath_source = array(
+    return array(
       'xpathparser:0' => array(
         'name' => t('XPath Expression'),
         'description' => t('Allows you to configure an XPath expression that will populate this field.'),
       ),
-    );
-
-    $sources = parent::getMappingSources();
-    // Older versions of Feeds return FALSE here.
-    if (is_array($sources)) {
-      return $sources + $xpath_source;
-    }
-
-    return $xpath_source;
+    ) + parent::getMappingSources();
   }
 }
 
