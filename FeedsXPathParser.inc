@@ -76,7 +76,9 @@ class FeedsXPathParserBase extends FeedsParser {
           $parsed_item[$source] = $result;
         }
       }
-      $parsed_items[] = $parsed_item;
+      if (!empty($parsed_item)) {
+        $parsed_items[] = $parsed_item;
+      }
     }
     return $parsed_items;
   }
