@@ -296,21 +296,32 @@ class FeedsXPathParserBase extends FeedsParser {
 
     if (extension_loaded('tidy')) {
       $form['exp']['tidy'] = array(
-        '#type'          => 'checkbox',
-        '#title'         => t('Use Tidy'),
-        '#description'   => t('The Tidy PHP extension has been detected.
+        '#type' => 'checkbox',
+        '#title' => t('Use Tidy'),
+        '#description' => t('The Tidy PHP extension has been detected.
                               Select this to clean the markup before parsing.'),
         '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : FALSE,
       );
+      $form['exp']['tidy_encoding'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Tidy encoding'),
+        '#description' => t('Set the encoding for tidy. See the !phpdocs for possible values.', array('!phpdocs' => l('PHP docs', 'http://www.php.net/manual/en/tidy.parsestring.php/'))),
+        '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : 'UTF8',
+        '#states' => array(
+          'visible' => array(
+            ':input[name="exp[tidy]"]' => array(
+              'checked' => TRUE,
+            ),
+          ),
+        ),
+      );
     }
-
     $form['exp']['debug'] = array(
       '#type'    => 'checkboxes',
-      '#title'   => t('Debug Query'),
+      '#title'   => t('Debug query'),
       '#options' => array_merge(array('context' => 'context'), $mappings),
       '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : array(),
     );
-
     return $form;
   }
 
@@ -336,12 +347,13 @@ class FeedsXPathParserBase extends FeedsParser {
   public function configDefaults() {
     return array(
       'sources' => array(),
-      'rawXML'  => array(),
+      'rawXML' => array(),
       'context' => '',
       'exp' => array(
         'errors' => FALSE,
-        'tidy'   => FALSE,
-        'debug'  => array(),
+        'tidy' => FALSE,
+        'debug' => array(),
+        'tidy_encoding' => 'UTF8',
       ),
     );
   }
@@ -431,7 +443,9 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
         'escape-cdata'     => TRUE,
         'word-2000'        => TRUE,
       );
-      $raw = tidy_repair_string($raw, $config);
+      // Default tidy encoding is UTF8.
+      $encoding = !empty($this->source_config['exp']['tidy_encoding']) ? $this->source_config['exp']['tidy_encoding'] : 'UTF8';
+      $raw = tidy_repair_string($raw, $config, $encoding);
     }
     if ($this->source_config['exp']['errors']) {
       $success = $dom->loadHTML($raw);
@@ -462,16 +476,16 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
       return;
     }
-
     if ($this->source_config['exp']['tidy']) {
       $config = array(
         'input-xml' => TRUE,
         'wrap'      => 0,
         'tidy-mark' => FALSE,
       );
-      $raw = tidy_repair_string($raw, $config);
+      // Default tidy encoding is UTF8.
+      $encoding = !empty($this->source_config['exp']['tidy_encoding']) ? $this->source_config['exp']['tidy_encoding'] : 'UTF8';
+      $raw = tidy_repair_string($raw, $config, $encoding);
     }
-
     $xml = new SimpleXMLElement($raw);
     return new FeedsParserResult($this->query($xml));
   }
@@ -521,7 +535,6 @@ class FeedsXPathQueryParser {
     $this->word_boundaries = array(
       '[', ']', '=', '(', ')', '.', '<', '>', '*', '!', '|', '/', ',', ' ', ':',
     );
-
     $this->in_quotes = FALSE;
     $this->quote_char = '';
     $this->word = '';
@@ -541,7 +554,6 @@ class FeedsXPathQueryParser {
         $this->handle_quote($c);
         continue;
       }
-
       if ($this->in_quotes) {
         $this->word .= $c;
         continue;
@@ -601,13 +613,11 @@ class FeedsXPathQueryParser {
       $this->skip_next_word = TRUE;
       return;
     }
-
     if ($this->skip_next_word) {
       $this->skip_next_word = FALSE;
       $this->output .= $this->word;
       return;
     }
-
     if (is_numeric($this->word) ||
         $this->axis == 'attribute' ||
         strpos($this->word, '@') === 0 ||
@@ -616,7 +626,6 @@ class FeedsXPathQueryParser {
       $this->output .= $this->word;
       return;
     }
-
     $this->output .= '__default__:' . $this->word;
   }
 
