@@ -220,6 +220,7 @@ class FeedsXPathParserBase extends FeedsParser {
     $form['#tree'] = TRUE;
 
     $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
+    $config = feeds_importer($this->id)->parser->config;
     $uniques = $mappings = array();
     foreach ($mappings_ as $mapping) {
       if (strpos($mapping['source'], 'xpathparser:') === 0) {
@@ -240,7 +241,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#title'         => t('Context'),
       '#required'      => TRUE,
       '#description'   => t('This is the base query, all other queries will run in this context.'),
-      '#default_value' => isset($source_config['context']) ? $source_config['context'] : '',
+      '#default_value' => isset($source_config['context']) ? $source_config['context'] : $config['context'],
       '#maxlength'     => 1024,
     );
 
@@ -265,7 +266,7 @@ class FeedsXPathParserBase extends FeedsParser {
         '#type'          => 'textfield',
         '#title'         => $target,
         '#description'   => t('The XPath query to run.'),
-        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
+        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : $config['sources'][$source],
         '#maxlength'     => 1024,
       );
       if (!empty($variables)) {
@@ -278,7 +279,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type'          => 'checkboxes',
       '#title'         => t('Select the queries you would like to return raw XML or HTML'),
       '#options'       => $mappings,
-      '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
+      '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : $config['rawXML'],
     );
 
     $form['exp'] = array(
@@ -291,7 +292,7 @@ class FeedsXPathParserBase extends FeedsParser {
     $form['exp']['errors'] = array(
       '#type' => 'checkbox',
       '#title' => t('Show error messages.'),
-      '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : FALSE,
+      '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : $config['exp']['errors'],
     );
 
     if (extension_loaded('tidy')) {
@@ -300,13 +301,13 @@ class FeedsXPathParserBase extends FeedsParser {
         '#title' => t('Use Tidy'),
         '#description' => t('The Tidy PHP extension has been detected.
                               Select this to clean the markup before parsing.'),
-        '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : FALSE,
+        '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : $config['exp']['tidy'],
       );
       $form['exp']['tidy_encoding'] = array(
         '#type' => 'textfield',
         '#title' => t('Tidy encoding'),
         '#description' => t('Set the encoding for tidy. See the !phpdocs for possible values.', array('!phpdocs' => l('PHP docs', 'http://www.php.net/manual/en/tidy.parsestring.php/'))),
-        '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : 'UTF8',
+        '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : $config['exp']['tidy_encoding'],
         '#states' => array(
           'visible' => array(
             ':input[name="exp[tidy]"]' => array(
@@ -320,7 +321,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type'    => 'checkboxes',
       '#title'   => t('Debug query'),
       '#options' => array_merge(array('context' => 'context'), $mappings),
-      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : array(),
+      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : $config['exp']['tidy_encoding'],
     );
     return $form;
   }
@@ -372,8 +373,25 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function sourceFormValidate(&$values) {
     $values['context'] = trim($values['context']);
-    foreach ($values['sources'] as &$query) {
+    if ($values['context'] === $this->config['context']) {
+      unset($values['context']);
+    }
+    foreach ($values['sources'] as $key => &$query) {
       $query = trim($query);
+      if (isset($this->config['sources'][$key]) && ($query === $this->config['sources'][$key])) {
+        unset($values['sources'][$key]);
+      }
+    }
+    if(empty($values['sources'])) {
+      unset($values['sources']);
+    }
+    foreach ($values['rawXML'] as $key => $xml) {
+      if (isset($this->config['rawXML'][$key]) && ($xml === $this->config['rawXML'][$key])) {
+        unset($values['rawXML'][$key]);
+      }
+    }
+    if(empty($values['rawXML'])) {
+      unset($values['rawXML']);
     }
   }
 
@@ -381,7 +399,13 @@ class FeedsXPathParserBase extends FeedsParser {
    * Override parent::sourceFormValidate().
    */
   public function configFormValidate(&$values) {
-    $this->sourceFormValidate($values);
+    $values['context'] = trim($values['context']);
+    foreach ($values['sources'] as $key => &$query) {
+      $query = trim($query);
+    }
+    if (!isset($values['exp']['tidy_encoding'])) {
+      $values['exp']['tidy_encoding'] = 'UTF8';
+    }
   }
 
   /**
