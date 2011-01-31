@@ -21,6 +21,33 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
+    $config = $source->importer->parser->config;
+
+    if (!isset($this->source_config['context'])) {
+      $this->source_config['context'] = $config['context'];
+    }
+    if (!isset($this->source_config['sources'])) {
+      $this->source_config['sources'] = array();
+    }
+    foreach ($config['sources'] as $key => $config_source) {
+      if (!isset($this->source_config['sources'][$key])) {
+        $this->source_config['sources'][$key] = $config_source;
+      }
+    }
+    if (!isset($this->source_config['exp'])) {
+      $this->source_config['exp'] = array();
+    }
+    if (!isset($this->source_config['exp']['errors'])) {
+      $this->source_config['exp']['errors'] = $config['exp']['errors'];
+    }
+    if (!isset($this->source_config['exp']['debug'])) {
+      $this->source_config['exp']['debug'] = array();
+    }
+    foreach ($config['exp']['debug'] as $key => $value) {
+      if (!isset($this->source_config['exp']['debug'][$key])) {
+        $this->source_config['exp']['debug'][$key] = $value;
+      }
+    }
     $mappings = feeds_importer($this->id)->processor->config['mappings'];
     $this->mappings = array();
     foreach ($mappings as $mapping) {
