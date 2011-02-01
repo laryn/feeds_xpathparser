@@ -22,7 +22,9 @@ class FeedsXPathParserBase extends FeedsParser {
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
     $config = $source->importer->parser->config;
-
+    dpm($config);
+    dpm($this->source_config);
+    // Inherit config values if they're not set.
     if (!isset($this->source_config['context'])) {
       $this->source_config['context'] = $config['context'];
     }
@@ -48,6 +50,26 @@ class FeedsXPathParserBase extends FeedsParser {
         $this->source_config['exp']['debug'][$key] = $value;
       }
     }
+    if (!isset($this->source_config['rawXML'])) {
+      $this->source_config['rawXML'] = array();
+    }
+    foreach ($config['rawXML'] as $key => $value) {
+      if (!isset($this->source_config['rawXML'][$key])) {
+        $this->source_config['rawXML'][$key] = $value;
+      }
+    }
+    if (!isset($this->source_config['exp']['tidy'])) {
+      if (!isset($config['exp']['tidy'])) {
+        $config['exp']['tidy'] = FALSE;
+      }
+      $this->source_config['exp']['tidy'] = $config['exp']['tidy'];
+    }
+    if (!isset($this->source_config['exp']['tidy_encoding'])) {
+      if (!isset($config['exp']['tidy_encoding'])) {
+        $config['exp']['tidy_encoding'] = 'UTF8';
+      }
+      $this->source_config['exp']['tidy_encoding'] = $config['exp']['tidy_encoding'];
+    }
     $mappings = feeds_importer($this->id)->processor->config['mappings'];
     $this->mappings = array();
     foreach ($mappings as $mapping) {
@@ -55,15 +77,8 @@ class FeedsXPathParserBase extends FeedsParser {
         $this->mappings[$mapping['source']] = $mapping['target'];
       }
     }
-
-    if (isset($this->source_config['rawXML']) &&
-        is_array($this->source_config['rawXML'])) {
-      $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
-    }
-    if (isset($this->source_config['exp']['debug'])
-        && is_array($this->source_config['exp']['debug'])) {
-      $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
-    }
+    $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
+    $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
   }
 
   /**
@@ -396,21 +411,46 @@ class FeedsXPathParserBase extends FeedsParser {
     }
     foreach ($values['sources'] as $key => &$query) {
       $query = trim($query);
-      if (isset($this->config['sources'][$key]) && ($query === $this->config['sources'][$key])) {
+      if ($query === $this->config['sources'][$key]) {
         unset($values['sources'][$key]);
       }
     }
     if(empty($values['sources'])) {
       unset($values['sources']);
     }
-    foreach ($values['rawXML'] as $key => $xml) {
-      if (isset($this->config['rawXML'][$key]) && ($xml === $this->config['rawXML'][$key])) {
+    foreach ($values['rawXML'] as $key => &$query) {
+      if ($query === $this->config['rawXML'][$key]) {
         unset($values['rawXML'][$key]);
       }
     }
     if(empty($values['rawXML'])) {
       unset($values['rawXML']);
     }
+    if ($values['exp']['errors'] === $this->config['exp']['errors']) {
+      unset($values['exp']['errors']);
+    }
+    foreach ($values['exp']['debug'] as $key => &$value) {
+      if ($value === $this->config['exp']['debug'][$key]) {
+        unset($values['exp']['debug'][$key]);
+      }
+    }
+    if (empty($values['exp']['debug'])) {
+      unset($values['exp']['debug']);
+    }
+    if (isset($values['exp']['tidy'])) {
+      if ($values['exp']['tidy'] === $this->config['exp']['tidy']) {
+        unset($values['exp']['tidy']);
+      }
+      if (isset($values['exp']['tidy_encoding'])) {
+        if ($values['exp']['tidy_encoding'] === $this->config['exp']['tidy_encoding']) {
+          unset($values['exp']['tidy_encoding']);
+        }
+      }
+    }
+    if (empty($values['exp'])) {
+      unset($values['exp']);
+    }
+    dpm($values);
   }
 
   /**
@@ -423,6 +463,9 @@ class FeedsXPathParserBase extends FeedsParser {
     }
     if (!isset($values['exp']['tidy_encoding'])) {
       $values['exp']['tidy_encoding'] = 'UTF8';
+    }
+    if (!isset($values['exp']['tidy'])) {
+      $values['exp']['tidy'] = FALSE;
     }
   }
 
