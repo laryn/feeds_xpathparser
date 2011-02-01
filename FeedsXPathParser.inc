@@ -248,6 +248,7 @@ class FeedsXPathParserBase extends FeedsParser {
 
     $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
     $config = feeds_importer($this->id)->parser->config;
+
     $uniques = $mappings = array();
     foreach ($mappings_ as $mapping) {
       if (strpos($mapping['source'], 'xpathparser:') === 0) {
@@ -257,12 +258,10 @@ class FeedsXPathParserBase extends FeedsParser {
         }
       }
     }
-
     if (empty($mappings)) {
       $form['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
       return $form;
     }
-
     $form['context'] = array(
       '#type'          => 'textfield',
       '#title'         => t('Context'),
@@ -271,11 +270,9 @@ class FeedsXPathParserBase extends FeedsParser {
       '#default_value' => isset($source_config['context']) ? $source_config['context'] : $config['context'],
       '#maxlength'     => 1024,
     );
-
     $form['sources'] = array(
       '#type' => 'fieldset',
     );
-
     if (!empty($uniques)) {
       $items = array(
         format_plural(count($uniques),
@@ -286,7 +283,6 @@ class FeedsXPathParserBase extends FeedsParser {
       );
       $form['sources']['help']['#markup'] = '<div class="help">' . theme('item_list', array('items' => $items)) . '</div>';
     }
-
     $variables = array();
     foreach ($mappings as $source => $target) {
       $form['sources'][$source] = array(
@@ -301,27 +297,23 @@ class FeedsXPathParserBase extends FeedsParser {
       }
       $variables[] = '$' . $target;
     }
-
     $form['rawXML'] = array(
       '#type'          => 'checkboxes',
       '#title'         => t('Select the queries you would like to return raw XML or HTML'),
       '#options'       => $mappings,
       '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : $config['rawXML'],
     );
-
     $form['exp'] = array(
       '#type' => 'fieldset',
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
       '#title' => 'XPath Parser Options',
     );
-
     $form['exp']['errors'] = array(
       '#type' => 'checkbox',
       '#title' => t('Show error messages.'),
       '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : $config['exp']['errors'],
     );
-
     if (extension_loaded('tidy')) {
       $form['exp']['tidy'] = array(
         '#type' => 'checkbox',
@@ -348,7 +340,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#type'    => 'checkboxes',
       '#title'   => t('Debug query'),
       '#options' => array_merge(array('context' => 'context'), $mappings),
-      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : $config['exp']['tidy_encoding'],
+      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : $config['exp']['debug'],
     );
     return $form;
   }
@@ -366,7 +358,6 @@ class FeedsXPathParserBase extends FeedsParser {
    * Define defaults.
    */
   public function sourceDefaults() {
-    return $this->config;
   }
 
   /**
