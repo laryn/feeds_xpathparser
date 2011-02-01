@@ -22,8 +22,7 @@ class FeedsXPathParserBase extends FeedsParser {
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
     $config = $source->importer->parser->config;
-    dpm($config);
-    dpm($this->source_config);
+
     // Inherit config values if they're not set.
     if (!isset($this->source_config['context'])) {
       $this->source_config['context'] = $config['context'];
@@ -138,7 +137,6 @@ class FeedsXPathParserBase extends FeedsParser {
    *   An array containing the results of the query.
    */
   private function namespacedXPathQuery($xml, $query) {
-
     list($results, $error) = $this->_query($xml, $query);
 
     if (is_object($error) && $this->source_config['exp']['errors']) {
@@ -264,6 +262,12 @@ class FeedsXPathParserBase extends FeedsParser {
     $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
     $config = feeds_importer($this->id)->parser->config;
 
+    // Add extensions that might get importerd.
+    $fetcher = feeds_importer($this->id)->fetcher;
+    if (isset($fetcher->config['allowed_extensions'])) {
+      $fetcher->config['allowed_extensions'] .= ' html htm';
+    }
+
     $uniques = $mappings = array();
     foreach ($mappings_ as $mapping) {
       if (strpos($mapping['source'], 'xpathparser:') === 0) {
@@ -372,8 +376,7 @@ class FeedsXPathParserBase extends FeedsParser {
   /**
    * Define defaults.
    */
-  public function sourceDefaults() {
-  }
+  public function sourceDefaults() {}
 
   /**
    * Define defaults.
@@ -450,7 +453,6 @@ class FeedsXPathParserBase extends FeedsParser {
     if (empty($values['exp'])) {
       unset($values['exp']);
     }
-    dpm($values);
   }
 
   /**
@@ -514,10 +516,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
       return;
     }
-    /**
-     * This is currently unsupported.
-     */
-    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
+    if ($this->source_config['exp']['tidy']) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
@@ -529,7 +528,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
         'word-2000'        => TRUE,
       );
       // Default tidy encoding is UTF8.
-      $encoding = !empty($this->source_config['exp']['tidy_encoding']) ? $this->source_config['exp']['tidy_encoding'] : 'UTF8';
+      $encoding = $this->source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string($raw, $config, $encoding);
     }
     if ($this->source_config['exp']['errors']) {
@@ -568,36 +567,11 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
         'tidy-mark' => FALSE,
       );
       // Default tidy encoding is UTF8.
-      $encoding = !empty($this->source_config['exp']['tidy_encoding']) ? $this->source_config['exp']['tidy_encoding'] : 'UTF8';
+      $encoding = $this->source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string($raw, $config, $encoding);
     }
     $xml = new SimpleXMLElement($raw);
     return new FeedsParserResult($this->query($xml));
-  }
-}
-
-/**
- * Implementation of hook_form_feeds_ui_mapping_form_alter().
- *
- * This is an interesting bit of work. Each source name has to be unique,
- * but we have no idea how many to create with getMappingSources() because we
- * don't know how many targets there are going to be.
- *
- * The solution is to keep track in the form how many have been added.
- */
-function feeds_xpathparser_form_feeds_ui_mapping_form_alter(&$form, &$form_state) {
-  $newest_xpath_mapping = array();
-  foreach ($form['#mappings'] as $mapping) {
-    if (strpos($mapping['source'], 'xpathparser:') === 0) {
-      $newest_xpath_mapping = $mapping;
-    }
-  }
-  if (!empty($newest_xpath_mapping)) {
-    list($a, $count) = explode(':', $newest_xpath_mapping['source']);
-    $default_source = $a . ':' . '0';
-    $label = $form['source']['#options'][$default_source];
-    unset($form['source']['#options'][$default_source]);
-    $form['source']['#options'][$a . ':' . ++$count] = $label;
   }
 }
 
