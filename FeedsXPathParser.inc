@@ -21,6 +21,8 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
+    $fetcher_config = $source->getConfigFor($source->importer->fetcher);
+    $this->link = $fetcher_config['source'];
     $config = $source->importer->parser->config;
 
     // Inherit config values if they're not set.
@@ -308,7 +310,7 @@ class FeedsXPathParserBase extends FeedsParser {
         '#type'          => 'textfield',
         '#title'         => $target,
         '#description'   => t('The XPath query to run.'),
-        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : $config['sources'][$source],
+        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : (isset($config['sources'][$source]) ? $config['sources'][$source] : ''),
         '#maxlength'     => 1024,
       );
       if (!empty($variables)) {
@@ -414,7 +416,7 @@ class FeedsXPathParserBase extends FeedsParser {
     }
     foreach ($values['sources'] as $key => &$query) {
       $query = trim($query);
-      if ($query === $this->config['sources'][$key]) {
+      if (isset($this->config['sources'][$key]) && $query === $this->config['sources'][$key]) {
         unset($values['sources'][$key]);
       }
     }
@@ -422,7 +424,7 @@ class FeedsXPathParserBase extends FeedsParser {
       unset($values['sources']);
     }
     foreach ($values['rawXML'] as $key => &$query) {
-      if ($query === $this->config['rawXML'][$key]) {
+      if (isset($this->config['rawXML'][$key]) && $query === $this->config['rawXML'][$key]) {
         unset($values['rawXML'][$key]);
       }
     }
@@ -433,7 +435,7 @@ class FeedsXPathParserBase extends FeedsParser {
       unset($values['exp']['errors']);
     }
     foreach ($values['exp']['debug'] as $key => &$value) {
-      if ($value === $this->config['exp']['debug'][$key]) {
+      if (isset($this->config['exp']['debug'][$key]) && $value === $this->config['exp']['debug'][$key]) {
         unset($values['exp']['debug'][$key]);
       }
     }
@@ -543,7 +545,10 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
 
     $xml = simplexml_import_dom($dom);
     unset($dom);
-    return new FeedsParserResult($this->query($xml));
+    $result = new FeedsParserResult($this->query($xml));
+    unset($xml);
+    $result->link = $this->link;
+    return $result;
   }
 }
 
@@ -571,7 +576,10 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       $raw = tidy_repair_string($raw, $config, $encoding);
     }
     $xml = new SimpleXMLElement($raw);
-    return new FeedsParserResult($this->query($xml));
+    $result = new FeedsParserResult($this->query($xml));
+    unset($xml);
+    $result->link = $this->link;
+    return $result;
   }
 }
 
