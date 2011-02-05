@@ -21,57 +21,16 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
+
+    if (empty($this->source_config)) {
+      $this->source_config = $this->config;
+    }
+
+    // Set link so we can set the result link attribute.
     $fetcher_config = $source->getConfigFor($source->importer->fetcher);
     $this->link = $fetcher_config['source'];
-    $config = $source->importer->parser->config;
 
-    // Inherit config values if they're not set.
-    if (!isset($this->source_config['context'])) {
-      $this->source_config['context'] = $config['context'];
-    }
-    if (!isset($this->source_config['sources'])) {
-      $this->source_config['sources'] = array();
-    }
-    foreach ($config['sources'] as $key => $config_source) {
-      if (!isset($this->source_config['sources'][$key])) {
-        $this->source_config['sources'][$key] = $config_source;
-      }
-    }
-    if (!isset($this->source_config['exp'])) {
-      $this->source_config['exp'] = array();
-    }
-    if (!isset($this->source_config['exp']['errors'])) {
-      $this->source_config['exp']['errors'] = $config['exp']['errors'];
-    }
-    if (!isset($this->source_config['exp']['debug'])) {
-      $this->source_config['exp']['debug'] = array();
-    }
-    foreach ($config['exp']['debug'] as $key => $value) {
-      if (!isset($this->source_config['exp']['debug'][$key])) {
-        $this->source_config['exp']['debug'][$key] = $value;
-      }
-    }
-    if (!isset($this->source_config['rawXML'])) {
-      $this->source_config['rawXML'] = array();
-    }
-    foreach ($config['rawXML'] as $key => $value) {
-      if (!isset($this->source_config['rawXML'][$key])) {
-        $this->source_config['rawXML'][$key] = $value;
-      }
-    }
-    if (!isset($this->source_config['exp']['tidy'])) {
-      if (!isset($config['exp']['tidy'])) {
-        $config['exp']['tidy'] = FALSE;
-      }
-      $this->source_config['exp']['tidy'] = $config['exp']['tidy'];
-    }
-    if (!isset($this->source_config['exp']['tidy_encoding'])) {
-      if (!isset($config['exp']['tidy_encoding'])) {
-        $config['exp']['tidy_encoding'] = 'UTF8';
-      }
-      $this->source_config['exp']['tidy_encoding'] = $config['exp']['tidy_encoding'];
-    }
-    $mappings = feeds_importer($this->id)->processor->config['mappings'];
+    $mappings = $source->importer->processor->config['mappings'];
     $this->mappings = array();
     foreach ($mappings as $mapping) {
       if (strpos($mapping['source'], 'xpathparser:') === 0) {
@@ -90,8 +49,7 @@ class FeedsXPathParserBase extends FeedsParser {
    *   A SimpleXMLElement object.
    *
    * @return array
-   *   Returns a structured array suitable for adding to a batch object with
-   *   $batch->setItems().
+   *   Returns a structured array suitable for use in FeedsParserResult().
    */
   protected function query($xml) {
     // Fetch the namespaces defined in the XML document.
@@ -99,15 +57,18 @@ class FeedsXPathParserBase extends FeedsParser {
 
     $this->addDefaultNamespace($xml, $this->source_config['context']);
     $all_items = $this->namespacedXPathQuery($xml, $this->source_config['context']);
+    unset($xml);
     $this->debug($all_items, 'context');
 
-    unset($xml);
     $parsed_items = array();
     foreach ($all_items as $item) {
       $parsed_item = $variables = array();
       foreach ($this->source_config['sources'] as $source => $query) {
+        // Add namespaces including __defualt__.
         $this->addDefaultNamespace($item, $query);
+        // Variable substitution.
         $query = strtr($query, $variables);
+        // Parse the item.
         $result = $this->parseSourceElement($item, $query, $source);
         if (isset($result)) {
           if (!is_array($result)) {
@@ -119,9 +80,7 @@ class FeedsXPathParserBase extends FeedsParser {
           $parsed_item[$source] = $result;
         }
       }
-      if (!empty($parsed_item)) {
-        $parsed_items[] = $parsed_item;
-      }
+      $parsed_items[] = $parsed_item;
     }
     return $parsed_items;
   }
@@ -258,16 +217,19 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function sourceForm($source_config) {
     $form = array();
-    $form['#weight'] = -10;
-    $form['#tree'] = TRUE;
 
     $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
-    $config = feeds_importer($this->id)->parser->config;
+
+    if (empty($source_config)) {
+      $source_config = $this->config;
+    }
 
     // Add extensions that might get importerd.
     $fetcher = feeds_importer($this->id)->fetcher;
     if (isset($fetcher->config['allowed_extensions'])) {
-      $fetcher->config['allowed_extensions'] .= ' html htm';
+      if (strpos($fetcher->config['allowed_extensions'], 'html') === FALSE) {
+        $fetcher->config['allowed_extensions'] .= ' html htm';
+      }
     }
 
     $uniques = $mappings = array();
@@ -283,16 +245,25 @@ class FeedsXPathParserBase extends FeedsParser {
       $form['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
       return $form;
     }
-    $form['context'] = array(
+    $form['xpath'] = array(
+      '#type' => 'fieldset',
+      '#tree' => TRUE,
+      '#title' => t('XPath Parser Settings'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+
+    $form['xpath']['context'] = array(
       '#type'          => 'textfield',
       '#title'         => t('Context'),
       '#required'      => TRUE,
       '#description'   => t('This is the base query, all other queries will run in this context.'),
-      '#default_value' => isset($source_config['context']) ? $source_config['context'] : $config['context'],
+      '#default_value' => isset($source_config['context']) ? $source_config['context'] : '',
       '#maxlength'     => 1024,
     );
-    $form['sources'] = array(
+    $form['xpath']['sources'] = array(
       '#type' => 'fieldset',
+      '#tree' => TRUE,
     );
     if (!empty($uniques)) {
       $items = array(
@@ -302,66 +273,67 @@ class FeedsXPathParserBase extends FeedsParser {
           t('Fields <strong>!columns</strong> are mandatory and values in these columns are considered unique: only one entry per value in one of these columns will be created.',
             array('!columns' => implode(', ', $uniques)))),
       );
-      $form['sources']['help']['#markup'] = '<div class="help">' . theme('item_list', array('items' => $items)) . '</div>';
+      $form['xpath']['sources']['help']['#markup'] = '<div class="help">' . theme('item_list', array('items' => $items)) . '</div>';
     }
     $variables = array();
     foreach ($mappings as $source => $target) {
-      $form['sources'][$source] = array(
+      $form['xpath']['sources'][$source] = array(
         '#type'          => 'textfield',
         '#title'         => $target,
         '#description'   => t('The XPath query to run.'),
-        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : (isset($config['sources'][$source]) ? $config['sources'][$source] : ''),
+        '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
         '#maxlength'     => 1024,
       );
       if (!empty($variables)) {
-        $form['sources'][$source]['#description'] .= '<br>' . t('The variables '. implode(', ', $variables). ' are availliable for replacement.');
+        $form['xpath']['sources'][$source]['#description'] .= '<br>' . t('The variables '. implode(', ', $variables). ' are availliable for replacement.');
       }
       $variables[] = '$' . $target;
     }
-    $form['rawXML'] = array(
+    $form['xpath']['rawXML'] = array(
       '#type'          => 'checkboxes',
       '#title'         => t('Select the queries you would like to return raw XML or HTML'),
       '#options'       => $mappings,
-      '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : $config['rawXML'],
+      '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
     );
-    $form['exp'] = array(
+    $form['xpath']['exp'] = array(
       '#type' => 'fieldset',
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
-      '#title' => 'XPath Parser Options',
+      '#tree' => TRUE,
+      '#title' => t('Debug Options'),
     );
-    $form['exp']['errors'] = array(
+    $form['xpath']['exp']['errors'] = array(
       '#type' => 'checkbox',
       '#title' => t('Show error messages.'),
-      '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : $config['exp']['errors'],
+      '#default_value' => isset($source_config['exp']['errors']) ? $source_config['exp']['errors'] : FALSE,
     );
     if (extension_loaded('tidy')) {
-      $form['exp']['tidy'] = array(
+      $form['xpath']['exp']['tidy'] = array(
         '#type' => 'checkbox',
         '#title' => t('Use Tidy'),
         '#description' => t('The Tidy PHP extension has been detected.
                               Select this to clean the markup before parsing.'),
-        '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : $config['exp']['tidy'],
+        '#default_value' => isset($source_config['exp']['tidy']) ? $source_config['exp']['tidy'] : FALSE,
       );
-      $form['exp']['tidy_encoding'] = array(
+      $form['xpath']['exp']['tidy_encoding'] = array(
         '#type' => 'textfield',
         '#title' => t('Tidy encoding'),
         '#description' => t('Set the encoding for tidy. See the !phpdocs for possible values.', array('!phpdocs' => l('PHP docs', 'http://www.php.net/manual/en/tidy.parsestring.php/'))),
-        '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : $config['exp']['tidy_encoding'],
+        '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : 'UTF8',
         '#states' => array(
           'visible' => array(
-            ':input[name="exp[tidy]"]' => array(
+            ':input[name$="[tidy]"]' => array(
               'checked' => TRUE,
             ),
           ),
         ),
       );
     }
-    $form['exp']['debug'] = array(
+    $form['xpath']['exp']['debug'] = array(
       '#type'    => 'checkboxes',
       '#title'   => t('Debug query'),
       '#options' => array_merge(array('context' => 'context'), $mappings),
-      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : $config['exp']['debug'],
+      '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : array(),
     );
     return $form;
   }
@@ -371,14 +343,17 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function configForm(&$form_state) {
     $form = $this->sourceForm($this->config);
-    $form['context']['#required'] = FALSE;
+    $form['xpath']['context']['#required'] = FALSE;
+    $form['xpath']['#collapsed'] = FALSE;
     return $form;
   }
 
   /**
    * Define defaults.
    */
-  public function sourceDefaults() {}
+  public function sourceDefaults() {
+    return array();
+  }
 
   /**
    * Define defaults.
@@ -410,67 +385,61 @@ class FeedsXPathParserBase extends FeedsParser {
    *   The values from the form to validate, passed by reference.
    */
   public function sourceFormValidate(&$values) {
-    $values['context'] = trim($values['context']);
-    if ($values['context'] === $this->config['context']) {
-      unset($values['context']);
+    $values = $values['xpath'];
+    if ($values == $this->config) {
+      $values = array();
+      return;
     }
-    foreach ($values['sources'] as $key => &$query) {
-      $query = trim($query);
-      if (isset($this->config['sources'][$key]) && $query === $this->config['sources'][$key]) {
-        unset($values['sources'][$key]);
-      }
-    }
-    if(empty($values['sources'])) {
-      unset($values['sources']);
-    }
-    foreach ($values['rawXML'] as $key => &$query) {
-      if (isset($this->config['rawXML'][$key]) && $query === $this->config['rawXML'][$key]) {
-        unset($values['rawXML'][$key]);
-      }
-    }
-    if(empty($values['rawXML'])) {
-      unset($values['rawXML']);
-    }
-    if ($values['exp']['errors'] === $this->config['exp']['errors']) {
-      unset($values['exp']['errors']);
-    }
-    foreach ($values['exp']['debug'] as $key => &$value) {
-      if (isset($this->config['exp']['debug'][$key]) && $value === $this->config['exp']['debug'][$key]) {
-        unset($values['exp']['debug'][$key]);
-      }
-    }
-    if (empty($values['exp']['debug'])) {
-      unset($values['exp']['debug']);
-    }
-    if (isset($values['exp']['tidy'])) {
-      if ($values['exp']['tidy'] === $this->config['exp']['tidy']) {
-        unset($values['exp']['tidy']);
-      }
-      if (isset($values['exp']['tidy_encoding'])) {
-        if ($values['exp']['tidy_encoding'] === $this->config['exp']['tidy_encoding']) {
-          unset($values['exp']['tidy_encoding']);
-        }
-      }
-    }
-    if (empty($values['exp'])) {
-      unset($values['exp']);
-    }
+    $this->configFormValidate($values);
   }
 
   /**
    * Override parent::sourceFormValidate().
    */
   public function configFormValidate(&$values) {
+    $config_form = FALSE;
+    if (isset($values['xpath'])) {
+      $values = $values['xpath'];
+      $config_form = TRUE;
+    }
+    $class = get_class($this);
+    $xml = new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?>' . "\n<items></items>");
+    $use_errors = libxml_use_internal_errors(TRUE);
+
     $values['context'] = trim($values['context']);
+    if (!empty($values['context'])) {
+      $result = $xml->xpath($values['context']);
+    }
+    $error = libxml_get_last_error();
+
+    // Error code 1219 is undefined namespace prefix.
+    // Our sample doc doesn't have any namespaces let alone the one they're
+    // trying to use. Besides, if someone is trying to use a namespace in an
+    // XPath query, they're probably right.
+    if ($error && $error->code != 1219) {
+      $element = 'feeds]['.$class.'][xpath][context';
+      if ($config_form) {
+        $element = 'xpath][context';
+      }
+      form_set_error($element, t('There was an error with the XPath selector: ') . $error->message);
+      libxml_clear_errors();
+    }
     foreach ($values['sources'] as $key => &$query) {
       $query = trim($query);
+      if (!empty($query)) {
+        $result = $xml->xpath($query);
+        $error = libxml_get_last_error();
+        if ($error && $error->code != 1219) {
+          $element = 'feeds]['.$class.'][xpath][sources][' . $key;
+          if ($config_form) {
+            $element = 'xpath][sources][' . $key;
+          }
+          form_set_error($element, t('There was an error with the XPath selector: ') . $error->message);
+          libxml_clear_errors();
+        }
+      }
     }
-    if (!isset($values['exp']['tidy_encoding'])) {
-      $values['exp']['tidy_encoding'] = 'UTF8';
-    }
-    if (!isset($values['exp']['tidy'])) {
-      $values['exp']['tidy'] = FALSE;
-    }
+    libxml_use_internal_errors($use_errors);
   }
 
   /**
