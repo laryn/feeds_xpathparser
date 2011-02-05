@@ -31,12 +31,7 @@ class FeedsXPathParserBase extends FeedsParser {
     $this->link = $fetcher_config['source'];
 
     $mappings = $source->importer->processor->config['mappings'];
-    $this->mappings = array();
-    foreach ($mappings as $mapping) {
-      if (strpos($mapping['source'], 'xpathparser:') === 0) {
-        $this->mappings[$mapping['source']] = $mapping['target'];
-      }
-    }
+    $this->mappings = $this->filterMappings($mappings);
     $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
     $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
   }
@@ -241,10 +236,6 @@ class FeedsXPathParserBase extends FeedsParser {
         }
       }
     }
-    if (empty($mappings)) {
-      $form['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
-      return $form;
-    }
     $form['xpath'] = array(
       '#type' => 'fieldset',
       '#tree' => TRUE,
@@ -252,14 +243,18 @@ class FeedsXPathParserBase extends FeedsParser {
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
     );
-
+    if (empty($mappings)) {
+      $form['xpath']['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
+      return $form;
+    }
     $form['xpath']['context'] = array(
-      '#type'          => 'textfield',
-      '#title'         => t('Context'),
-      '#required'      => TRUE,
-      '#description'   => t('This is the base query, all other queries will run in this context.'),
+      '#type' => 'textfield',
+      '#title' => t('Context'),
+      '#required' => TRUE,
+      '#description' => t('This is the base query, all other queries will run in this context.'),
       '#default_value' => isset($source_config['context']) ? $source_config['context'] : '',
-      '#maxlength'     => 1024,
+      '#maxlength' => 1024,
+      '#size' => 80,
     );
     $form['xpath']['sources'] = array(
       '#type' => 'fieldset',
@@ -278,11 +273,12 @@ class FeedsXPathParserBase extends FeedsParser {
     $variables = array();
     foreach ($mappings as $source => $target) {
       $form['xpath']['sources'][$source] = array(
-        '#type'          => 'textfield',
-        '#title'         => $target,
-        '#description'   => t('The XPath query to run.'),
+        '#type' => 'textfield',
+        '#title' => $target,
+        '#description' => t('The XPath query to run.'),
         '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
-        '#maxlength'     => 1024,
+        '#maxlength' => 1024,
+        '#size' => 80,
       );
       if (!empty($variables)) {
         $form['xpath']['sources'][$source]['#description'] .= '<br>' . t('The variables '. implode(', ', $variables). ' are availliable for replacement.');
@@ -290,9 +286,9 @@ class FeedsXPathParserBase extends FeedsParser {
       $variables[] = '$' . $target;
     }
     $form['xpath']['rawXML'] = array(
-      '#type'          => 'checkboxes',
-      '#title'         => t('Select the queries you would like to return raw XML or HTML'),
-      '#options'       => $mappings,
+      '#type' => 'checkboxes',
+      '#title' => t('Select the queries you would like to return raw XML or HTML'),
+      '#options' => $mappings,
       '#default_value' => isset($source_config['rawXML']) ? $source_config['rawXML'] : array(),
     );
     $form['xpath']['exp'] = array(
@@ -330,8 +326,8 @@ class FeedsXPathParserBase extends FeedsParser {
       );
     }
     $form['xpath']['exp']['debug'] = array(
-      '#type'    => 'checkboxes',
-      '#title'   => t('Debug query'),
+      '#type' => 'checkboxes',
+      '#title' => t('Debug query'),
       '#options' => array_merge(array('context' => 'context'), $mappings),
       '#default_value' => isset($source_config['exp']['debug']) ? $source_config['exp']['debug'] : array(),
     );
@@ -375,18 +371,17 @@ class FeedsXPathParserBase extends FeedsParser {
   /**
    * Override parent::sourceFormValidate().
    *
-   * Simply trims all XPath values from the form. That way when testing them
-   * later we can be sure that there aren't any strings with spaces in them.
-   *
-   * @todo
-   *   validate xpath queries?
+   * If the values of this source are the same as the base config we set them to
+   * blank to that the values will be inherited from the importer defaults.
    *
    * @param &$values
    *   The values from the form to validate, passed by reference.
    */
   public function sourceFormValidate(&$values) {
     $values = $values['xpath'];
-    if ($values == $this->config) {
+    asort($values);
+    asort($this->config);
+    if ($values === $this->config) {
       $values = array();
       return;
     }
@@ -463,12 +458,32 @@ class FeedsXPathParserBase extends FeedsParser {
   * Override parent::getMappingSources().
   */
   public function getMappingSources() {
+    $mappings = $this->filterMappings(feeds_importer($this->id)->processor->config['mappings']);
+    $next = 0;
+    if (!empty($mappings)) {
+      $last_mapping = end(array_keys($mappings));
+      $next = explode(':', $last_mapping);
+      $next = $next[1] + 1;
+    }
     return array(
-      'xpathparser:0' => array(
+      'xpathparser:' . $next => array(
         'name' => t('XPath Expression'),
         'description' => t('Allows you to configure an XPath expression that will populate this field.'),
       ),
     ) + parent::getMappingSources();
+  }
+
+  /**
+   * Filters mappings, returning the ones that belong to us.
+   */
+  private function filterMappings($mappings) {
+    $our_mappings = array();
+    foreach ($mappings as $mapping) {
+      if (strpos($mapping['source'], 'xpathparser:') === 0) {
+        $our_mappings[$mapping['source']] = $mapping['target'];
+      }
+    }
+    return $our_mappings;
   }
 }
 
@@ -487,7 +502,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
       return;
     }
-    if ($this->source_config['exp']['tidy']) {
+    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
@@ -534,7 +549,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
       return;
     }
-    if ($this->source_config['exp']['tidy']) {
+    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
       $config = array(
         'input-xml' => TRUE,
         'wrap'      => 0,
