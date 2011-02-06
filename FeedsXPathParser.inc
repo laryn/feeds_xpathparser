@@ -17,7 +17,7 @@ class FeedsXPathParserBase extends FeedsParser {
   protected $debug = array();
 
   /**
-   * Implementation of FeedsParser::parse().
+   * Implements FeedsParser::parse().
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $this->source_config = $source->getConfigFor($this);
@@ -59,10 +59,10 @@ class FeedsXPathParserBase extends FeedsParser {
     foreach ($all_items as $item) {
       $parsed_item = $variables = array();
       foreach ($this->source_config['sources'] as $source => $query) {
-        // Add namespaces including __defualt__.
-        $this->addDefaultNamespace($item, $query);
         // Variable substitution.
         $query = strtr($query, $variables);
+        // Add namespaces including __defualt__.
+        $this->addDefaultNamespace($item, $query);
         // Parse the item.
         $result = $this->parseSourceElement($item, $query, $source);
         if (isset($result)) {
@@ -118,6 +118,8 @@ class FeedsXPathParserBase extends FeedsParser {
         FALSE);
       }
     }
+    // Some versions of libxml return an empty array, some false on a query
+    // that returns no results. We always return an array to make like easier.
     if ($results === FALSE) {
       return array();
     }
@@ -244,7 +246,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#collapsed' => TRUE,
     );
     if (empty($mappings)) {
-      $form['xpath']['error_message']['#value'] = 'FeedsXPathParser: No mappings are defined.<br>';
+      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined.)' . '</div><br>';
       return $form;
     }
     $form['xpath']['context'] = array(
@@ -274,7 +276,7 @@ class FeedsXPathParserBase extends FeedsParser {
     foreach ($mappings as $source => $target) {
       $form['xpath']['sources'][$source] = array(
         '#type' => 'textfield',
-        '#title' => $target,
+        '#title' => check_plain($target),
         '#description' => t('The XPath query to run.'),
         '#default_value' => isset($source_config['sources'][$source]) ? $source_config['sources'][$source] : '',
         '#maxlength' => 1024,
@@ -490,13 +492,12 @@ class FeedsXPathParserBase extends FeedsParser {
 class FeedsXPathParserHTML extends FeedsXPathParserBase {
 
   /**
-   * Implementation of FeedsParser::parse().
+   * Implements FeedsParser::parse().
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     parent::parse($source, $fetcher_result);
 
-    $dom = new DOMDocument();
-    $raw = trim($fetcher_result->getRaw());
+    $raw = $fetcher_result->getRaw();
 
     if (empty($raw)) {
       drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
@@ -515,14 +516,16 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       );
       // Default tidy encoding is UTF8.
       $encoding = $this->source_config['exp']['tidy_encoding'];
-      $raw = tidy_repair_string($raw, $config, $encoding);
+      $raw = tidy_repair_string(trim($raw), $config, $encoding);
     }
+    $dom = new DOMDocument();
     if ($this->source_config['exp']['errors']) {
       $success = $dom->loadHTML($raw);
     }
     else {
       $success = @$dom->loadHTML($raw);
     }
+    unset($raw);
     if (!$success) {
       throw new Exception(t('There was an error parsing the HTML document.'));
     }
@@ -539,7 +542,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
 class FeedsXPathParserXML extends FeedsXPathParserBase {
 
   /**
-   * Implementation of FeedsParser::parse().
+   * Implements FeedsParser::parse().
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     parent::parse($source, $fetcher_result);
