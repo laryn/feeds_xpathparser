@@ -14,7 +14,7 @@ class FeedsXPathParserBase extends FeedsParser {
 
   protected $modified_queries = array();
   protected $rawXML = array();
-  protected $debug = array();
+  protected $namespaces = array();
 
   /**
    * Implements FeedsParser::parse().
@@ -26,45 +26,43 @@ class FeedsXPathParserBase extends FeedsParser {
       $this->source_config = $this->config;
     }
 
-    // Set link so we can set the result link attribute.
-    $fetcher_config = $source->getConfigFor($source->importer->fetcher);
-    $this->link = $fetcher_config['source'];
+    $this->parserResult = new FeedsParserResult();
 
     $mappings = $source->importer->processor->config['mappings'];
     $this->mappings = $this->filterMappings($mappings);
     $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
-    $this->debug = array_keys(array_filter($this->source_config['exp']['debug']));
+    // Set link.
+    $fetcher_config = $source->getConfigFor($source->importer->fetcher);
+    $this->parserResult->link = $fetcher_config['source'];
   }
 
   /**
    * Starts the parsing. First runs the context query, then queries each
    * item from the context with the field queries.
    *
-   * @param $xml
-   *   A SimpleXMLElement object.
+   * @param $dom
+   *   A DOMDocument object.
    *
    * @return array
    *   Returns a structured array suitable for use in FeedsParserResult().
    */
-  protected function query($xml) {
-    // Fetch the namespaces defined in the XML document.
-    $this->namespaces = $xml->getNamespaces(TRUE);
+  protected function query() {
 
-    $this->addDefaultNamespace($xml, $this->source_config['context']);
-    $all_items = $this->namespacedXPathQuery($xml, $this->source_config['context']);
-    unset($xml);
-    $this->debug($all_items, 'context');
+    $this->xpath = new FeedsXPathParserXPath($this->doc);
+    $config = array();
+    $config['debug'] = array_keys(array_filter($this->source_config['exp']['debug']));
+    $config['errors'] = $this->source_config['exp']['errors'];
 
-    $parsed_items = array();
-    foreach ($all_items as $item) {
-      $parsed_item = $variables = array();
+    $this->xpath->setConfig($config);
+    $allNodes = $this->xpath->namespacedQuery($this->source_config['context'], NULL, 'context');
+
+    foreach ($allNodes as $node) {
+      $parsedItem = $variables = array();
       foreach ($this->source_config['sources'] as $source => $query) {
         // Variable substitution.
         $query = strtr($query, $variables);
-        // Add namespaces including __defualt__.
-        $this->addDefaultNamespace($item, $query);
         // Parse the item.
-        $result = $this->parseSourceElement($item, $query, $source);
+        $result = $this->parseSourceElement($query, $node, $source);
         if (isset($result)) {
           if (!is_array($result)) {
             $variables['$' . $this->mappings[$source]] = $result;
@@ -72,92 +70,10 @@ class FeedsXPathParserBase extends FeedsParser {
           else {
             $variables['$' . $this->mappings[$source]] = '';
           }
-          $parsed_item[$source] = $result;
+          $parsedItem[$source] = $result;
         }
       }
-      $parsed_items[] = $parsed_item;
-    }
-    return $parsed_items;
-  }
-
-  /**
-   * Executes an XPath query with namespace support.
-   *
-   * @param $xml
-   *   The XML element to execute the query on.
-   *
-   * @param $query
-   *   An XPath query.
-   *
-   * @return array
-   *   An array containing the results of the query.
-   */
-  private function namespacedXPathQuery($xml, $query) {
-    list($results, $error) = $this->_query($xml, $query);
-
-    if (is_object($error) && $this->source_config['exp']['errors']) {
-
-      if ($error->level == LIBXML_ERR_ERROR) {
-       drupal_set_message(
-        t("There was an error with the XPath query: %query.<br>
-          Libxml returned the message: %message, with the error code: %code.",
-          array('%query'   => $query,
-                '%message' => trim($error->message),
-                '%code'    => $error->code)),
-        'error',
-        FALSE);
-      }
-      elseif ($error->level == LIBXML_ERR_WARNING) {
-       drupal_set_message(
-        t("There was an error with the XPath query: %query.<br>
-          Libxml returned the message: %message, with the error code: %code.",
-          array('%query'   => $query,
-                '%message' => trim($error->message),
-                '%code'    => $error->code)),
-        'warning',
-        FALSE);
-      }
-    }
-    // Some versions of libxml return an empty array, some false on a query
-    // that returns no results. We always return an array to make like easier.
-    if ($results === FALSE) {
-      return array();
-    }
-    return $results;
-  }
-
-  private function debug($item, $source) {
-    if (in_array($source, $this->debug)) {
-      $o = '<ul>';
-      foreach ($item as $i) {
-        $o .= '<li>' . check_plain($i->asXML()) . '</li>';
-      }
-      $o .= '</ul>';
-      drupal_set_message($source . ':' . $o);
-    }
-  }
-
-  /**
-   * Normalizes XPath queries, adding the default namespace.
-   */
-  private function addDefaultNamespace($xml, &$query) {
-    foreach ($this->namespaces as $prefix => $namespace) {
-      if ($prefix === '') {
-        $xml->registerXPathNamespace('__default__', $namespace);
-        // Replace all the elements without prefix by the default prefix.
-        if (!isset($this->modified_queries[$query])) {
-          $parser = new FeedsXPathQueryParser($query);
-          $mod_query = $parser->getQuery();
-          $this->modified_queries[$query] = $mod_query;
-          $query = $mod_query;
-        }
-        else {
-          $query = $this->modified_queries[$query];
-        }
-      }
-      else {
-        $xml->registerXPathNamespace($prefix, $namespace);
-      }
+      $this->parserResult->items[] = $parsedItem;
     }
   }
 
@@ -176,37 +92,40 @@ class FeedsXPathParserBase extends FeedsParser {
    * @return array
    *   An array containing the results of the query.
    */
-  protected function parseSourceElement($item, $query, $source) {
+  protected function parseSourceElement($query, $context, $source) {
 
     if (empty($query)) {
       return;
     }
-    $results = $this->namespacedXPathQuery($item, $query);
-    unset($item);
-    $this->debug($results, $source);
+
+    $nodeList = $this->xpath->namespacedQuery($query, $context, $source);
     /**
      * Iterate through the results of the xpath query.  If this source is
      * configured to return raw xml, make it so.
      */
-    foreach ($results as &$result) {
+    if ($nodeList instanceof DOMNodeList) {
+      $results = array();
       if (in_array($source, $this->rawXML)) {
-        $result = $result->asXML();
+        foreach ($nodeList as $node) {
+          $results[] = $this->doc->savexML($node);
+        }
       }
       else {
-        $result = (string) $result;
+        foreach ($nodeList as $node) {
+          $results[] = $node->nodeValue;
+        }
       }
+      if (count($results) === 1) {
+        return $results[0];
+      }
+      if (count($results) === 0) {
+        return;
+      }
+      return $results;
     }
-    /**
-     * If there is one result, return it directly.  If there are no results,
-     * return.
-     */
-    if (count($results) === 1) {
-      return $results[0];
+    else {
+      return $nodeList;
     }
-    if (count($results) === 0) {
-      return;
-    }
-    return $results;
   }
 
   /**
@@ -440,23 +359,6 @@ class FeedsXPathParserBase extends FeedsParser {
   }
 
   /**
-   * Here we set libxml_use_internal_errors to TRUE because depending on the
-   * libxml version, $xml->xpath() might return FALSE or an empty array() when
-   * a query doesn't match.
-   */
-  private function _query($xml, $query) {
-    $use_errors = libxml_use_internal_errors(TRUE);
-
-    // Perfom xpath query.
-    $results = $xml->xpath($query);
-
-    $error = libxml_get_last_error();
-    libxml_clear_errors();
-    libxml_use_internal_errors($use_errors);
-    return array($results, $error);
-  }
-
-  /**
   * Override parent::getMappingSources().
   */
   public function getMappingSources() {
@@ -518,24 +420,21 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       $encoding = $this->source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string(trim($raw), $config, $encoding);
     }
-    $dom = new DOMDocument();
+    $this->doc = new DOMDocument();
     if ($this->source_config['exp']['errors']) {
-      $success = $dom->loadHTML($raw);
+      $success = $this->doc->loadHTML($raw);
     }
     else {
-      $success = @$dom->loadHTML($raw);
+      $success = @$this->doc->loadHTML($raw);
     }
     unset($raw);
     if (!$success) {
       throw new Exception(t('There was an error parsing the HTML document.'));
     }
-
-    $xml = simplexml_import_dom($dom);
-    unset($dom);
-    $result = new FeedsParserResult($this->query($xml));
-    unset($xml);
-    $result->link = $this->link;
-    return $result;
+    // Fetch the namespaces defined in the XML document.
+    $this->query();
+    unset($this->doc);
+    return $this->parserResult;
   }
 }
 
@@ -562,12 +461,12 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       $encoding = $this->source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string(trim($raw), $config, $encoding);
     }
-    $xml = new SimpleXMLElement($raw);
+    $this->doc = new DOMDocument();
+    $this->doc->loadXML($raw);
     unset($raw);
-    $result = new FeedsParserResult($this->query($xml));
-    unset($xml);
-    $result->link = $this->link;
-    return $result;
+    $this->query();
+    unset($this->doc);
+    return $this->parserResult;
   }
 }
 
@@ -686,5 +585,135 @@ class FeedsXPathQueryParser {
 
   function getQuery() {
     return $this->output;
+  }
+}
+
+class FeedsXPathParserXPath extends DOMXPath {
+  protected $config = array();
+  protected $modifiedQueries = array();
+
+  public function __construct(DOMDocument $doc) {
+    $this->namespaces = simplexml_import_dom($doc)->getNamespaces(TRUE);
+    $this->doc = $doc;
+    parent::__construct($doc);
+  }
+
+  public function setConfig(array $config) {
+    $this->config = $config;
+  }
+
+  private function debug($data, $source) {
+    $o = '<ul>';
+    if ($data instanceof DOMNodeList) {
+      foreach ($data as $node) {
+        $o .= '<li>';
+        $o .= check_plain($this->doc->saveXML($node));
+        $o .= '</li>';
+      }
+    }
+    else {
+      $o .= '<li>' . check_plain($data) . '</li>';
+    }
+    $o .= '</ul>';
+    drupal_set_message($source . ':' . $o);
+  }
+  /**
+   * Executes an XPath query with namespace support.
+   *
+   * @param $xpath
+   *   The DOMXPath object.
+   *
+   * @param $query
+   *   An XPath query.
+   *
+   * @return array
+   *   An array containing the results of the query.
+   */
+  public function namespacedQuery($query, $context, $source) {
+    $this->debug($this->query('namespace'), 'test');
+    $this->addDefaultNamespace($query);
+    $results = $this->_query($query, $context);
+    if (in_array($source, $this->config['debug'])) {
+      $this->debug($results, $source);
+    }
+
+    if (is_object($this->error) && $this->config['errors']) {
+
+      if ($this->error->level == LIBXML_ERR_ERROR) {
+       drupal_set_message(
+        t("There was an error during the XPath query: %query.<br>
+          Libxml returned the message: %message, with the error code: %code.",
+          array('%query'   => $query,
+                '%message' => trim($this->error->message),
+                '%code'    => $this->error->code)),
+        'error',
+        FALSE);
+      }
+      elseif ($this->error->level == LIBXML_ERR_WARNING) {
+       drupal_set_message(
+        t("There was an error during the XPath query: %query.<br>
+          Libxml returned the message: %message, with the error code: %code.",
+          array('%query'   => $query,
+                '%message' => trim($this->error->message),
+                '%code'    => $this->error->code)),
+        'warning',
+        FALSE);
+      }
+    }
+    // Some versions of libxml return an empty array, some false on a query
+    // that returns no results. We always return an array to make like easier.
+    if ($results === FALSE) {
+      return array();
+    }
+    return $results;
+  }
+
+  /**
+   * Normalizes XPath queries, adding the default namespace.
+   *
+   * @param $query
+   *   An XPath query string
+   */
+  private function addDefaultNamespace(&$query) {
+    foreach ($this->namespaces as $prefix => $namespace) {
+      if ($prefix === '') {
+        $this->registerNamespace('__default__', $namespace);
+
+        // Replace all the elements without prefix by the default prefix.
+        if (!isset($this->modifiedQueries[$query])) {
+          $parser = new FeedsXPathQueryParser($query);
+          $modQuery = $parser->getQuery();
+          $this->modifiedQueries[$query] = $modQuery;
+          $query = $modQuery;
+        }
+        else {
+          $query = $this->modifiedQueries[$query];
+        }
+      }
+      else {
+        $this->registerNamespace($prefix, $namespace);
+      }
+    }
+  }
+
+  /**
+   * Here we set libxml_use_internal_errors to TRUE because depending on the
+   * libxml version, $xml->xpath() might return FALSE or an empty array() when
+   * a query doesn't match.
+   */
+  private function _query($query, $context = NULL) {
+    $use_errors = libxml_use_internal_errors(TRUE);
+
+    // Perfom xpath query.
+    if ($context) {
+      $results = $this->evaluate($query, $context);
+    }
+    else {
+      $results = $this->query($query);
+    }
+    $this->error = libxml_get_last_error();
+    libxml_clear_errors();
+    libxml_use_internal_errors($use_errors);
+    return $results;
   }
 }
