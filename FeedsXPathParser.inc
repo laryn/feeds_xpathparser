@@ -546,7 +546,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     parent::parse($source, $fetcher_result);
-    $raw = trim($fetcher_result->getRaw());
+    $raw = $fetcher_result->getRaw();
 
     if (empty($raw)) {
       drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
@@ -560,9 +560,10 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       );
       // Default tidy encoding is UTF8.
       $encoding = $this->source_config['exp']['tidy_encoding'];
-      $raw = tidy_repair_string($raw, $config, $encoding);
+      $raw = tidy_repair_string(trim($raw), $config, $encoding);
     }
     $xml = new SimpleXMLElement($raw);
+    unset($raw);
     $result = new FeedsParserResult($this->query($xml));
     unset($xml);
     $result->link = $this->link;
