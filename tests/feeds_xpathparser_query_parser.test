@@ -1,6 +1,7 @@
 <?php
 
 /**
+ * @file
  * Test cases for the xpath query parser.
  */
 class FeedsXPathQueryParserTestCase extends DrupalWebTestCase {

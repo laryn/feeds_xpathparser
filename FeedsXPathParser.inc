@@ -164,7 +164,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#collapsed' => TRUE,
     );
     if (empty($mappings)) {
-      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined.') . '</div><br>';
+      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined.') . '</div><br />';
       return $form;
     }
     $form['xpath']['context'] = array(
@@ -201,7 +201,7 @@ class FeedsXPathParserBase extends FeedsParser {
         '#size' => 80,
       );
       if (!empty($variables)) {
-        $form['xpath']['sources'][$source]['#description'] .= '<br>' . t('The variables '. implode(', ', $variables). ' are available for replacement.');
+        $form['xpath']['sources'][$source]['#description'] .= '<br />' . t('The variables ' . implode(', ', $variables) . ' are available for replacement.');
       }
       $variables[] = '$' . $target;
     }
@@ -234,7 +234,7 @@ class FeedsXPathParserBase extends FeedsParser {
       $form['xpath']['exp']['tidy_encoding'] = array(
         '#type' => 'textfield',
         '#title' => t('Tidy encoding'),
-        '#description' => t('Set the encoding for tidy. See the !phpdocs for possible values.', array('!phpdocs' => l('PHP docs', 'http://www.php.net/manual/en/tidy.parsestring.php/'))),
+        '#description' => t('Set the encoding for tidy. See the !phpdocs for possible values.', array('!phpdocs' => l(t('PHP docs'), 'http://www.php.net/manual/en/tidy.parsestring.php/'))),
         '#default_value' => isset($source_config['exp']['tidy_encoding']) ? $source_config['exp']['tidy_encoding'] : 'UTF8',
         '#states' => array(
           'visible' => array(
@@ -332,11 +332,11 @@ class FeedsXPathParserBase extends FeedsParser {
     // trying to use. Besides, if someone is trying to use a namespace in an
     // XPath query, they're probably right.
     if ($error && $error->code != 1219) {
-      $element = 'feeds]['.$class.'][xpath][context';
+      $element = 'feeds][' . $class . '][xpath][context';
       if ($config_form) {
         $element = 'xpath][context';
       }
-      form_set_error($element, t('There was an error with the XPath selector: ') . $error->message);
+      form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->messages)));
       libxml_clear_errors();
     }
     foreach ($values['sources'] as $key => &$query) {
@@ -345,11 +345,11 @@ class FeedsXPathParserBase extends FeedsParser {
         $result = $xml->xpath($query);
         $error = libxml_get_last_error();
         if ($error && $error->code != 1219) {
-          $element = 'feeds]['.$class.'][xpath][sources][' . $key;
+          $element = 'feeds][' . $class . '][xpath][sources][' . $key;
           if ($config_form) {
             $element = 'xpath][sources][' . $key;
           }
-          form_set_error($element, t('There was an error with the XPath selector: ') . $error->message);
+          form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->messages)));
           libxml_clear_errors();
         }
       }
@@ -499,7 +499,7 @@ class FeedsXPathQueryParser {
   }
 
   function start() {
-    for ($i=0; $i < strlen($this->query); $i++) {
+    for ($i=0; $i < drupal_strlen($this->query); $i++) {
       $this->i = $i;
       $c = $this->query[$i];
 
@@ -639,24 +639,24 @@ class FeedsXPathParserXPath extends DOMXPath {
     if (is_object($this->error) && $this->config['errors']) {
 
       if ($this->error->level == LIBXML_ERR_ERROR) {
-       drupal_set_message(
-        t("There was an error during the XPath query: %query.<br>
-          Libxml returned the message: %message, with the error code: %code.",
-          array('%query'   => $query,
-                '%message' => trim($this->error->message),
-                '%code'    => $this->error->code)),
-        'error',
-        FALSE);
+        drupal_set_message(
+          t("There was an error during the XPath query: %query.<br />
+            Libxml returned the message: %message, with the error code: %code.",
+            array('%query'   => $query,
+                  '%message' => trim($this->error->message),
+                  '%code'    => $this->error->code)),
+          'error',
+          FALSE);
       }
       elseif ($this->error->level == LIBXML_ERR_WARNING) {
-       drupal_set_message(
-        t("There was an error during the XPath query: %query.<br>
-          Libxml returned the message: %message, with the error code: %code.",
-          array('%query'   => $query,
-                '%message' => trim($this->error->message),
-                '%code'    => $this->error->code)),
-        'warning',
-        FALSE);
+        drupal_set_message(
+          t("There was an error during the XPath query: %query.<br />
+            Libxml returned the message: %message, with the error code: %code.",
+            array('%query'   => $query,
+                  '%message' => trim($this->error->message),
+                  '%code'    => $this->error->code)),
+          'warning',
+          FALSE);
       }
     }
     // Some versions of libxml return an empty array, some false on a query

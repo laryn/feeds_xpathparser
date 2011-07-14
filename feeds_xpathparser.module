@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Implementation of hook_feeds_plugins().
+ * Implements hook_feeds_plugins().
  */
 function feeds_xpathparser_feeds_plugins() {
   $path = drupal_get_path('module', 'feeds_xpathparser');
@@ -18,7 +18,7 @@ function feeds_xpathparser_feeds_plugins() {
     ),
   );
 
-   $info['FeedsXPathParserXML'] = array(
+  $info['FeedsXPathParserXML'] = array(
     'name'        => t('XPath XML parser'),
     'description' => t('Parse XML using XPath.'),
     'handler'     => array(
@@ -30,13 +30,4 @@ function feeds_xpathparser_feeds_plugins() {
   );
 
   return $info;
-}
-
-/**
- * Implements hook_enable().
- *
- * Clear Feed's plugin cache so that this plugin shows up.
- */
-function feeds_xpathparser_enable() {
-  cache_clear_all('plugins:feeds:plugins', 'cache');
 }

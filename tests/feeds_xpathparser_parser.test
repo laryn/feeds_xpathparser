@@ -13,11 +13,11 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
   /**
    * Describe this test.
    */
-  public function getInfo() {
+  public static function getInfo() {
     return array(
-      'name' => t('XPath Parser: HTML Parser'),
-      'description' => t('Regression tests for Feeds XPath HTML parser.'),
-      'group' => t('Feeds'),
+      'name' => 'XPath Parser: HTML Parser',
+      'description' => 'Regression tests for Feeds XPath HTML parser.',
+      'group' => 'Feeds',
     );
   }
 
@@ -25,7 +25,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
    * Set up test.
    */
   public function setUp() {
-    parent::setUp(array('feeds', 'feeds_ui', 'ctools', 'job_scheduler', 'feeds_xpathparser'));
+    parent::setUp('feeds_xpathparser');
 
     // Set the front page to show 30 nodes so we can easily see what is aggregated.
     $edit = array('default_nodes_main' => 30);
@@ -71,12 +71,12 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     $this->assertRaw('td[1]/a/@href');
 
     // Test import.
-    $path = $GLOBALS['base_url'] .'/'. drupal_get_path('module', 'feeds_xpathparser') .'/tests/feeds_xpathparser/';
+    $path = $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'feeds_xpathparser') . '/tests/feeds_xpathparser/';
     $nid = $this->createFeedNode('xpath', $path . 'issues_drupal.org.htm', 'Testing XPath HTML Parser');
     $this->assertText('Created 29 nodes');
 
     // Import again, this verifies url field was mapped correctly.
-    $this->drupalPost('node/'. $nid .'/import', array(), 'Import');
+    $this->drupalPost('node/' . $nid . '/import', array(), 'Import');
     $this->assertText('There are no new nodes');
 
     // Assert accuracy of aggregated content. I find humor in using our own
@@ -118,8 +118,8 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]' => 'bar',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:1]' => 'baz',
     );
-    $this->drupalPost('node/'. $nid .'/edit', $edit, 'Save');
-    $this->drupalGet('node/'. $nid .'/edit');
+    $this->drupalPost('node/' . $nid . '/edit', $edit, 'Save');
+    $this->drupalGet('node/' . $nid . '/edit');
     // Why not use XPath to test XPath?
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-context"][1]/@value', '/foo');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-sources-xpathparser0"][1]/@value', 'bar');
@@ -127,7 +127,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
 
     // Assert the we don't create an empty node when XPath values don't return anything.
     // That happened at one point.
-    $this->drupalPost('node/'. $nid .'/import', array(), 'Import');
+    $this->drupalPost('node/' . $nid . '/import', array(), 'Import');
     $this->assertText('There are no new nodes');
 
     // Test that validation works.
@@ -135,7 +135,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
       'feeds[FeedsXPathParserHTML][xpath][context]' => 'sdf asf',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]' => 'asdf[sadfas asdf]',
     );
-    $this->drupalPost('node/'. $nid .'/edit', $edit, 'Save');
+    $this->drupalPost('node/' . $nid . '/edit', $edit, 'Save');
     $this->assertText('There was an error with the XPath selector: Invalid expression');
     $this->assertText('There was an error with the XPath selector: Invalid predicate');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-context"][1]/@class', 'form-text required error');
@@ -148,8 +148,8 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]' => 'td[1]/a',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:1]' => 'td[1]/a/@href',
     );
-    $this->drupalPost('node/'. $nid .'/edit', $edit, 'Save');
-    $this->drupalGet('node/'. $nid .'/edit');
+    $this->drupalPost('node/' . $nid . '/edit', $edit, 'Save');
+    $this->drupalGet('node/' . $nid . '/edit');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-context"][1]/@value', '//tr[starts-with(@class, "odd ") or starts-with(@class, "even ")]');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-sources-xpathparser0"][1]/@value', 'td[1]/a');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-sources-xpathparser1"][1]/@value', 'td[1]/a/@href');
@@ -167,7 +167,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     $this->assertRaw('boyz');
 
     // Make sure the changes propigated.
-    $this->drupalGet('node/'. $nid .'/edit');
+    $this->drupalGet('node/' . $nid . '/edit');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-context"][1]/@value', '//tr');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-sources-xpathparser0"][1]/@value', 'booya');
     $this->assertFieldByXPath('//input[@id="edit-feeds-feedsxpathparserhtml-xpath-sources-xpathparser1"][1]/@value', 'boyz');
