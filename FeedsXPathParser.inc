@@ -630,7 +630,6 @@ class FeedsXPathParserXPath extends DOMXPath {
    *   An array containing the results of the query.
    */
   public function namespacedQuery($query, $context, $source) {
-    $this->debug($this->query('namespace'), 'test');
     $this->addDefaultNamespace($query);
     $results = $this->_query($query, $context);
     if (in_array($source, $this->config['debug'])) {
