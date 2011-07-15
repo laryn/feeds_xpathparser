@@ -336,7 +336,7 @@ class FeedsXPathParserBase extends FeedsParser {
       if ($config_form) {
         $element = 'xpath][context';
       }
-      form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->messages)));
+      form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->message)));
       libxml_clear_errors();
     }
     foreach ($values['sources'] as $key => &$query) {
@@ -349,7 +349,7 @@ class FeedsXPathParserBase extends FeedsParser {
           if ($config_form) {
             $element = 'xpath][sources][' . $key;
           }
-          form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->messages)));
+          form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->message)));
           libxml_clear_errors();
         }
       }
@@ -364,7 +364,8 @@ class FeedsXPathParserBase extends FeedsParser {
     $mappings = $this->filterMappings(feeds_importer($this->id)->processor->config['mappings']);
     $next = 0;
     if (!empty($mappings)) {
-      $last_mapping = end(array_keys($mappings));
+      $keys = array_keys($mappings);
+      $last_mapping = end($keys);
       $next = explode(':', $last_mapping);
       $next = $next[1] + 1;
     }

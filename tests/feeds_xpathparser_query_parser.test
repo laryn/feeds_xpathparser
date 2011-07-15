@@ -8,7 +8,7 @@ class FeedsXPathQueryParserTestCase extends DrupalWebTestCase {
   /**
    * Describe this test.
    */
-  public function getInfo() {
+  public static function getInfo() {
     return array(
       'name' => t('XPath Parser: Query Parser'),
       'description' => t('Unit tests for the query parser inside Feeds XPath Parser.'),

@@ -1,0 +1,5 @@
+<?php
+
+function feeds_xpathparser_enable() {
+  drupal_flush_all_caches();
+}
