@@ -70,6 +70,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     // Test import.
     $path = $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'feeds_xpathparser') . '/tests/feeds_xpathparser/';
     $nid = $this->createFeedNode('xpath', $path . 'issues_drupal.org.htm', 'Testing XPath HTML Parser');
+    $feed_node_edit_url = 'node/' . $nid . '/edit';
     $this->assertText('Created 29 nodes');
 
     // Import again, this verifies url field was mapped correctly.
@@ -109,13 +110,55 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     $this->assertText("I dont want to define any field queries");
     $this->assertText("Document // and other syntax for this module a little better");
 
+    // Test debugging.
+    $edit = array(
+      'feeds[FeedsXPathParserHTML][xpath][exp][debug][xpathparser:0]' => TRUE,
+    );
+    $this->postAndCheck($feed_node_edit_url, $edit, 'Save', 'Basic page Testing XPath HTML Parser has been updated.');
+    $this->drupalPost('node/' . $nid . '/import', array(), 'Import');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/976478&quot;&gt;Xpath Functions&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1048030&quot;&gt;Unable to upload .html files&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1050310&quot;&gt;Import to multiple content types&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1047788&quot;&gt;Parser includes tags in mapped output&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1043608&quot;&gt;Errors&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1044546&quot;&gt;Loop through HTML - all data is in one node?&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1043728&quot;&gt;Patch: add encoding options for PHP tidy feature&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1040132&quot;&gt;Import and Maintain 1300+ Node Items&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1043604&quot;&gt;Documentation update&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1039492&quot;&gt;An HTTP error 404 occured&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1042048&quot;&gt;Does it work with Feeds Image Grabber&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/961158&quot;&gt;Node published date not being correctly mapped (set to 1 Jan 1970)&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1021474&quot;&gt;fields to fill xpath not displayed in importer interface except for &quot;body&quot;&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1040530&quot;&gt;parsing link field&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1038912&quot;&gt;Error when switching to XML Parser&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1032340&quot;&gt;Duplicate content even if &quot;unique target&quot; is set&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/982102&quot;&gt;Labels/field names become meaningless with Data Processor&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/1034758&quot;&gt;Xpath namespace help&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/908458&quot;&gt;warning: mysql_real_escape_string()&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/869076&quot;&gt;Feeds XPath Parser: warning: Invalid argument&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/991386&quot;&gt;What am I missing? FeedsXPathParser: No mappings are defined.&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/990972&quot;&gt;CDATA in tag not producing text&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/989948&quot;&gt;Cant map empty fields&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/973324&quot;&gt;Support literal XPath expressions&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/958344&quot;&gt;adding a prefix to a parsed xml value.&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/914216&quot;&gt;Mapping on import&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/863714&quot;&gt;Feeds XPath Parser: HTML parser example for number expressions&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/915856&quot;&gt;I dont want to define any field queries&lt;/a&gt;');
+    $this->assertText('&lt;a href=&quot;http://drupal.org/node/950150&quot;&gt;Document // and other syntax for this module a little better&lt;/a&gt;');
+    $this->assertText('There are no new nodes');
+    // Turn debugging off.
+    $edit = array(
+      'feeds[FeedsXPathParserHTML][xpath][exp][debug][xpathparser:0]' => FALSE,
+    );
+    $this->postAndCheck($feed_node_edit_url, $edit, 'Save', 'Basic page Testing XPath HTML Parser has been updated.');
+
     // Test that overriding default settings works.
     $edit = array(
       'feeds[FeedsXPathParserHTML][xpath][context]' => '/foo',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]' => 'bar',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:1]' => 'baz',
     );
-    $feed_node_edit_url = 'node/' . $nid . '/edit';
+
     $this->postAndCheck($feed_node_edit_url, $edit, 'Save', 'Basic page Testing XPath HTML Parser has been updated.');
 
     // Assert the we don't create an empty node when XPath values don't return anything.
@@ -159,7 +202,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     $this->assertFieldByName('feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]', 'booya');
     $this->assertFieldByName('feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:1]', 'boyz');
   }
-  
+
   function postAndCheck($url, $edit, $button, $saved_text) {
     $this->drupalPost($url, $edit, $button);
     $this->assertText($saved_text);

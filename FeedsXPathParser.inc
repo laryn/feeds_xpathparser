@@ -163,7 +163,7 @@ class FeedsXPathParserBase extends FeedsParser {
       '#collapsed' => TRUE,
     );
     if (empty($mappings)) {
-      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined.') . '</div><br />';
+      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined. Define mappings !link.', array('!link' => l(t('here'), 'admin/structure/feeds/edit/' . $this->id . '/mapping'))) . '</div><br />';
       return $form;
     }
     $form['xpath']['context'] = array(
