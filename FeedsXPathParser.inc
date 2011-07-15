@@ -13,7 +13,6 @@ class FeedsXPathParserBase extends FeedsParser {
 
   protected $modified_queries = array();
   protected $rawXML = array();
-  protected $namespaces = array();
 
   /**
    * Implements FeedsParser::parse().
@@ -431,7 +430,7 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     if (!$success) {
       throw new Exception(t('There was an error parsing the HTML document.'));
     }
-    // Fetch the namespaces defined in the XML document.
+    // Parse!
     $this->query();
     unset($this->doc);
     return $this->parserResult;
