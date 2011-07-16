@@ -15,9 +15,9 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
    */
   public static function getInfo() {
     return array(
-      'name' => 'XPath Parser: HTML Parser',
+      'name' => 'HTML Parser',
       'description' => 'Regression tests for Feeds XPath HTML parser.',
-      'group' => 'Feeds',
+      'group' => 'Feeds XPath Parser',
     );
   }
 

@@ -2,8 +2,7 @@
 
 /**
  * @file
- *
- * Provides the HTML and XML Classes for Feeds XPath Parser.
+ * Provides the base class for FeedsXPathParserHTML and FeedsXPathParserXML.
  */
 
 /**
@@ -21,7 +20,7 @@ class FeedsXPathParserBase extends FeedsParser {
     $this->source_config = $source->getConfigFor($this);
 
     if (empty($this->source_config)) {
-      $this->source_config = $this->config;
+      $this->source_config = $this->getConfig();
     }
 
     $this->parserResult = new FeedsParserResult();
@@ -46,7 +45,7 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   protected function query() {
 
-    $this->xpath = new FeedsXPathParserXPath($this->doc);
+    $this->xpath = new FeedsXPathParserDOMXPath($this->doc);
     $config = array();
     $config['debug'] = array_keys(array_filter($this->source_config['exp']['debug']));
     $config['errors'] = $this->source_config['exp']['errors'];
@@ -131,18 +130,25 @@ class FeedsXPathParserBase extends FeedsParser {
    */
   public function sourceForm($source_config) {
     $form = array();
-
-    $mappings_ = feeds_importer($this->id)->processor->config['mappings'];
+    $importer = feeds_importer($this->id);
+    $importer_config = $importer->getConfig();
+    $mappings_ = $importer_config['processor']['config']['mappings'];
 
     if (empty($source_config)) {
-      $source_config = $this->config;
+      $source_config = $this->getConfig();
+    }
+
+    if (isset($source_config['allow_override']) &&
+        !$source_config['allow_override'] &&
+        empty($source_config['config'])) {
+      return;
     }
 
     // Add extensions that might get importerd.
-    $fetcher = feeds_importer($this->id)->fetcher;
-    if (isset($fetcher->config['allowed_extensions'])) {
-      if (strpos($fetcher->config['allowed_extensions'], 'html') === FALSE) {
-        $fetcher->config['allowed_extensions'] .= ' html htm';
+    $allowed_extensions = isset($importer_config['fetcher']['config']['allowed_extensions']) ? $importer_config['fetcher']['config']['allowed_extensions'] : FALSE;
+    if ($allowed_extensions) {
+      if (strpos($allowed_extensions, 'html') === FALSE) {
+        $importer->fetcher->config['allowed_extensions'] .= ' html htm';
       }
     }
 
@@ -257,9 +263,17 @@ class FeedsXPathParserBase extends FeedsParser {
    * Override parent::configForm().
    */
   public function configForm(&$form_state) {
-    $form = $this->sourceForm($this->config);
+    $config = $this->getConfig();
+    $config['config'] = TRUE;
+    $form = $this->sourceForm($config);
     $form['xpath']['context']['#required'] = FALSE;
     $form['xpath']['#collapsed'] = FALSE;
+    $form['xpath']['allow_override'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Allow source configuration override'),
+      '#description' => t('This setting allows feed nodes to specify their own XPath values for the context and sources.'),
+      '#default_value' => $config['allow_override'],
+    );
     return $form;
   }
 
@@ -284,6 +298,7 @@ class FeedsXPathParserBase extends FeedsParser {
         'debug' => array(),
         'tidy_encoding' => 'UTF8',
       ),
+      'allow_override' => TRUE,
     );
   }
 
@@ -297,13 +312,17 @@ class FeedsXPathParserBase extends FeedsParser {
    *   The values from the form to validate, passed by reference.
    */
   public function sourceFormValidate(&$values) {
+    $config = $this->getConfig();
     $values = $values['xpath'];
+    $allow_override = $config['allow_override'];
+    unset($config['allow_override']);
     asort($values);
-    asort($this->config);
-    if ($values === $this->config) {
+    asort($config);
+    if ($values === $config || !$allow_override) {
       $values = array();
       return;
     }
+
     $this->configFormValidate($values);
   }
 
@@ -387,331 +406,5 @@ class FeedsXPathParserBase extends FeedsParser {
       }
     }
     return $our_mappings;
-  }
-}
-
-class FeedsXPathParserHTML extends FeedsXPathParserBase {
-
-  /**
-   * Implements FeedsParser::parse().
-   */
-  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
-    parent::parse($source, $fetcher_result);
-
-    $raw = $fetcher_result->getRaw();
-
-    if (empty($raw)) {
-      drupal_set_message(t('Feeds XPath parser: The HTML document is empty.'), 'warning');
-      return;
-    }
-    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
-      $config = array(
-        'merge-divs'       => FALSE,
-        'merge-spans'      => FALSE,
-        'join-styles'      => FALSE,
-        'drop-empty-paras' => FALSE,
-        'wrap'             => 0,
-        'tidy-mark'        => FALSE,
-        'escape-cdata'     => TRUE,
-        'word-2000'        => TRUE,
-      );
-      // Default tidy encoding is UTF8.
-      $encoding = $this->source_config['exp']['tidy_encoding'];
-      $raw = tidy_repair_string(trim($raw), $config, $encoding);
-    }
-    $this->doc = new DOMDocument();
-    if ($this->source_config['exp']['errors']) {
-      $success = $this->doc->loadHTML($raw);
-    }
-    else {
-      $success = @$this->doc->loadHTML($raw);
-    }
-    unset($raw);
-    if (!$success) {
-      throw new Exception(t('There was an error parsing the HTML document.'));
-    }
-    // Parse!
-    $this->query();
-    unset($this->doc);
-    return $this->parserResult;
-  }
-}
-
-class FeedsXPathParserXML extends FeedsXPathParserBase {
-
-  /**
-   * Implements FeedsParser::parse().
-   */
-  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
-    parent::parse($source, $fetcher_result);
-    $raw = $fetcher_result->getRaw();
-
-    if (empty($raw)) {
-      drupal_set_message(t('Feeds XPath parser: The XML document is empty.'), 'warning');
-      return;
-    }
-    if (isset($this->source_config['exp']['tidy']) && $this->source_config['exp']['tidy']) {
-      $config = array(
-        'input-xml' => TRUE,
-        'wrap'      => 0,
-        'tidy-mark' => FALSE,
-      );
-      // Default tidy encoding is UTF8.
-      $encoding = $this->source_config['exp']['tidy_encoding'];
-      $raw = tidy_repair_string(trim($raw), $config, $encoding);
-    }
-    $this->doc = new DOMDocument();
-    $this->doc->loadXML($raw);
-    unset($raw);
-    $this->query();
-    unset($this->doc);
-    return $this->parserResult;
-  }
-}
-
-/**
- * Pseudo-parser of XPath queries.  When an XML document has a default
- * namespace this gets called so that adding the __default__ namepace where
- * appropriate. Aren't we nice?
- *
- * @todo
- *   Cleanup.
- * @param $query
- *   An XPath query string.
- * @return string
- *   An XPath query string with the __default__ namespace added.
- */
-class FeedsXPathQueryParser {
-  function __construct($query) {
-    $this->query = preg_replace('/\s+\(\s*/', '(', $query);
-
-    $this->word_boundaries = array(
-      '[', ']', '=', '(', ')', '.', '<', '>', '*', '!', '|', '/', ',', ' ', ':',
-    );
-    $this->in_quotes = FALSE;
-    $this->quote_char = '';
-    $this->word = '';
-    $this->output = '';
-    $this->prev_boundary = '';
-    $this->axis = '';
-    $this->skip_next_word = FALSE;
-    $this->start();
-  }
-
-  function start() {
-    for ($i=0; $i < drupal_strlen($this->query); $i++) {
-      $this->i = $i;
-      $c = $this->query[$i];
-
-      if ($c == '"' || $c == "'") {
-        $this->handle_quote($c);
-        continue;
-      }
-      if ($this->in_quotes) {
-        $this->word .= $c;
-        continue;
-      }
-
-      if (in_array($c, $this->word_boundaries)) {
-        $this->handle_word_boundary($c);
-      }
-      else {
-        $this->word .= $c;
-      }
-    }
-    $this->handle_word();
-  }
-
-  function handle_quote($c) {
-    if ($this->in_quotes && $c == $this->quote_char) {
-      $this->in_quotes = FALSE;
-      $this->word .= $c;
-      $this->output .= $this->word;
-      $this->word = '';
-    }
-    elseif (!$this->in_quotes) {
-      $this->in_quotes = TRUE;
-      $this->handle_word();
-      $this->word = $c;
-      $this->quote_char = $c;
-    }
-    else {
-      $this->word .= $c;
-    }
-  }
-
-  function handle_word_boundary($c) {
-    if (in_array($this->word, array('div', 'or', 'and', 'mod')) &&
-        $this->prev_boundary == ' ' && $c == ' ') {
-      $this->output .= $this->word;
-    }
-    else {
-      $this->handle_word($c);
-    }
-    $this->output .= $c;
-    $this->word = '';
-    $this->prev_boundary = $c;
-  }
-
-  function handle_word($c='') {
-    if ($this->word == '') {
-      return;
-    }
-    if ($c == ':' && $this->query[$this->i + 1] == ':') {
-      $this->axis = $this->word;
-    }
-    if ($c == ':' && $this->query[$this->i - 1] != ':'  &&
-        $this->query[$this->i + 1] != ':') {
-      $this->output .= $this->word;
-      $this->skip_next_word = TRUE;
-      return;
-    }
-    if ($this->skip_next_word) {
-      $this->skip_next_word = FALSE;
-      $this->output .= $this->word;
-      return;
-    }
-    if (is_numeric($this->word) ||
-        $this->axis == 'attribute' ||
-        strpos($this->word, '@') === 0 ||
-        $c == '(' ||
-        $c == ':') {
-      $this->output .= $this->word;
-      return;
-    }
-    $this->output .= '__default__:' . $this->word;
-  }
-
-  function getQuery() {
-    return $this->output;
-  }
-}
-
-class FeedsXPathParserXPath extends DOMXPath {
-  protected $config = array();
-  protected $modifiedQueries = array();
-
-  public function __construct(DOMDocument $doc) {
-    $this->namespaces = simplexml_import_dom($doc)->getNamespaces(TRUE);
-    $this->doc = $doc;
-    parent::__construct($doc);
-  }
-
-  public function setConfig(array $config) {
-    $this->config = $config;
-  }
-
-  protected function debug($data, $source) {
-    $o = '<ul>';
-    if ($data instanceof DOMNodeList) {
-      foreach ($data as $node) {
-        $o .= '<li>';
-        $o .= check_plain($this->doc->saveXML($node));
-        $o .= '</li>';
-      }
-    }
-    else {
-      $o .= '<li>' . check_plain($data) . '</li>';
-    }
-    $o .= '</ul>';
-    drupal_set_message($source . ':' . $o);
-  }
-  /**
-   * Executes an XPath query with namespace support.
-   *
-   * @param $xpath
-   *   The DOMXPath object.
-   *
-   * @param $query
-   *   An XPath query.
-   *
-   * @return array
-   *   An array containing the results of the query.
-   */
-  public function namespacedQuery($query, $context, $source) {
-    $this->addDefaultNamespace($query);
-    $results = $this->_query($query, $context);
-    if (in_array($source, $this->config['debug'])) {
-      $this->debug($results, $source);
-    }
-
-    if (is_object($this->error) && $this->config['errors']) {
-
-      if ($this->error->level == LIBXML_ERR_ERROR) {
-        drupal_set_message(
-          t("There was an error during the XPath query: %query.<br />
-            Libxml returned the message: %message, with the error code: %code.",
-            array('%query'   => $query,
-                  '%message' => trim($this->error->message),
-                  '%code'    => $this->error->code)),
-          'error',
-          FALSE);
-      }
-      elseif ($this->error->level == LIBXML_ERR_WARNING) {
-        drupal_set_message(
-          t("There was an error during the XPath query: %query.<br />
-            Libxml returned the message: %message, with the error code: %code.",
-            array('%query'   => $query,
-                  '%message' => trim($this->error->message),
-                  '%code'    => $this->error->code)),
-          'warning',
-          FALSE);
-      }
-    }
-    // Some versions of libxml return an empty array, some false on a query
-    // that returns no results. We always return an array to make like easier.
-    if ($results === FALSE) {
-      return array();
-    }
-    return $results;
-  }
-
-  /**
-   * Normalizes XPath queries, adding the default namespace.
-   *
-   * @param $query
-   *   An XPath query string
-   */
-  protected function addDefaultNamespace(&$query) {
-    foreach ($this->namespaces as $prefix => $namespace) {
-      if ($prefix === '') {
-        $this->registerNamespace('__default__', $namespace);
-
-        // Replace all the elements without prefix by the default prefix.
-        if (!isset($this->modifiedQueries[$query])) {
-          $parser = new FeedsXPathQueryParser($query);
-          $modQuery = $parser->getQuery();
-          $this->modifiedQueries[$query] = $modQuery;
-          $query = $modQuery;
-        }
-        else {
-          $query = $this->modifiedQueries[$query];
-        }
-      }
-      else {
-        $this->registerNamespace($prefix, $namespace);
-      }
-    }
-  }
-
-  /**
-   * Here we set libxml_use_internal_errors to TRUE because depending on the
-   * libxml version, $xml->xpath() might return FALSE or an empty array() when
-   * a query doesn't match.
-   */
-  protected function _query($query, $context = NULL) {
-    $use_errors = libxml_use_internal_errors(TRUE);
-
-    // Perfom XPath query.
-    if ($context) {
-      $results = $this->evaluate($query, $context);
-    }
-    else {
-      $results = $this->query($query);
-    }
-    $this->error = libxml_get_last_error();
-    libxml_clear_errors();
-    libxml_use_internal_errors($use_errors);
-    return $results;
   }
 }
