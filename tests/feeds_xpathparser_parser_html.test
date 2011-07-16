@@ -8,7 +8,7 @@
 /**
  * Test single feeds.
  */
-class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
+class FeedsXPathParseHTMLTestCase extends FeedsXPathParserWebTestCase {
 
   /**
    * Describe this test.
@@ -19,22 +19,6 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
       'description' => 'Regression tests for Feeds XPath HTML parser.',
       'group' => 'Feeds XPath Parser',
     );
-  }
-
-  /**
-   * Set up test.
-   */
-  public function setUp() {
-    parent::setUp('feeds_xpathparser');
-
-    // Set the front page to show 30 nodes so we can easily see what is aggregated.
-    $edit = array('default_nodes_main' => 30);
-    $this->drupalPost('admin/config/system/site-information', $edit, 'Save configuration');
-
-    // Set the teaser length display to unlimited otherwise tests looking for
-    // text on nodes will fail.
-    $edit = array('fields[body][type]' => 'text_default');
-    $this->drupalPost('admin/structure/types/manage/article/display/teaser', $edit, 'Save');
   }
 
   /**
@@ -171,7 +155,7 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
       'feeds[FeedsXPathParserHTML][xpath][context]' => 'sdf asf',
       'feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]' => 'asdf[sadfas asdf]',
     );
-    $this->drupalPost('node/' . $nid . '/edit', $edit, 'Save');
+    $this->drupalPost($feed_node_edit_url, $edit, 'Save');
     // Check for valid error messages.
     $this->assertText('There was an error with the XPath selector: Invalid expression');
     $this->assertText('There was an error with the XPath selector: Invalid predicate');
@@ -197,18 +181,9 @@ class FeedsXPathParserParserTestCase extends FeedsWebTestCase {
     $this->postAndCheck($importer_url, $edit, 'Save', 'Your changes have been saved.');
 
     // Make sure the changes propigated.
-    $this->drupalGet('node/' . $nid . '/edit');
+    $this->drupalGet($feed_node_edit_url);
     $this->assertFieldByName('feeds[FeedsXPathParserHTML][xpath][context]', '//tr');
     $this->assertFieldByName('feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:0]', 'booya');
     $this->assertFieldByName('feeds[FeedsXPathParserHTML][xpath][sources][xpathparser:1]', 'boyz');
-  }
-
-  function postAndCheck($url, $edit, $button, $saved_text) {
-    $this->drupalPost($url, $edit, $button);
-    $this->assertText($saved_text);
-    $this->drupalGet($url);
-    foreach ($edit as $key => $value) {
-      $this->assertFieldByName($key, $value);
-    }
   }
 }

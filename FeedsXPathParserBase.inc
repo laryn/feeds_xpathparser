@@ -316,8 +316,8 @@ class FeedsXPathParserBase extends FeedsParser {
     $values = $values['xpath'];
     $allow_override = $config['allow_override'];
     unset($config['allow_override']);
-    asort($values);
-    asort($config);
+    ksort($values);
+    ksort($config);
     if ($values === $config || !$allow_override) {
       $values = array();
       return;
