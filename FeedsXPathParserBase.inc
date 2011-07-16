@@ -95,20 +95,20 @@ class FeedsXPathParserBase extends FeedsParser {
       return;
     }
 
-    $nodeList = $this->xpath->namespacedQuery($query, $context, $source);
+    $node_list = $this->xpath->namespacedQuery($query, $context, $source);
     /**
      * Iterate through the results of the XPath query.  If this source is
      * configured to return raw xml, make it so.
      */
-    if ($nodeList instanceof DOMNodeList) {
+    if ($node_list instanceof DOMNodeList) {
       $results = array();
       if (in_array($source, $this->rawXML)) {
-        foreach ($nodeList as $node) {
+        foreach ($node_list as $node) {
           $results[] = $this->doc->savexML($node);
         }
       }
       else {
-        foreach ($nodeList as $node) {
+        foreach ($node_list as $node) {
           $results[] = $node->nodeValue;
         }
       }
@@ -121,7 +121,7 @@ class FeedsXPathParserBase extends FeedsParser {
       return $results;
     }
     else {
-      return $nodeList;
+      return $node_list;
     }
   }
 
