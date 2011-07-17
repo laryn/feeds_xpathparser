@@ -25,8 +25,7 @@ class FeedsXPathParserBase extends FeedsParser {
 
     $this->parserResult = new FeedsParserResult();
 
-    $mappings = $source->importer->processor->config['mappings'];
-    $this->mappings = $this->filterMappings($mappings);
+    $this->mappings = $this->getOwnMappings();
     $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
     // Set link.
     $fetcher_config = $source->getConfigFor($source->importer->fetcher);
@@ -70,7 +69,9 @@ class FeedsXPathParserBase extends FeedsParser {
           $parsedItem[$source] = $result;
         }
       }
-      $this->parserResult->items[] = $parsedItem;
+      if (!empty($parsedItem)) {
+        $this->parserResult->items[] = $parsedItem;
+      }
     }
   }
 
@@ -112,15 +113,19 @@ class FeedsXPathParserBase extends FeedsParser {
           $results[] = $node->nodeValue;
         }
       }
+      // Return single result if so.
       if (count($results) === 1) {
         return $results[0];
       }
-      if (count($results) === 0) {
+      // Empty result returns NULL, that way we can check.
+      elseif (empty($results)) {
         return;
       }
-      return $results;
+      else {
+        return $results;
+      }
     }
-    else {
+    elseif (!empty($node_list)) {
       return $node_list;
     }
   }
@@ -330,6 +335,9 @@ class FeedsXPathParserBase extends FeedsParser {
    * Override parent::sourceFormValidate().
    */
   public function configFormValidate(&$values) {
+    $mappings = $this->getOwnMappings();
+
+    // This tests if we're validating configForm or sourceForm.
     $config_form = FALSE;
     if (isset($values['xpath'])) {
       $values = $values['xpath'];
@@ -363,12 +371,24 @@ class FeedsXPathParserBase extends FeedsParser {
         $result = $xml->xpath($query);
         $error = libxml_get_last_error();
         if ($error && $error->code != 1219) {
-          $element = 'feeds][' . $class . '][xpath][sources][' . $key;
-          if ($config_form) {
-            $element = 'xpath][sources][' . $key;
+          $variable_present = FALSE;
+          // Our variable substitution options can cause syntax errors, check
+          // if we're doing that.
+          if ($error->code == 1207) {
+            foreach ($mappings as $target) {
+              if (strpos($query, '$' . $target) !== FALSE) {
+                $variable_present = TRUE;
+              }
+            }
           }
-          form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->message)));
-          libxml_clear_errors();
+          if (!$variable_present) {
+            $element = 'feeds][' . $class . '][xpath][sources][' . $key;
+            if ($config_form) {
+              $element = 'xpath][sources][' . $key;
+            }
+            form_set_error($element, t('There was an error with the XPath selector: %error', array('%error' => $error->message)));
+            libxml_clear_errors();
+          }
         }
       }
     }
@@ -393,6 +413,11 @@ class FeedsXPathParserBase extends FeedsParser {
         'description' => t('Allows you to configure an XPath expression that will populate this field.'),
       ),
     ) + parent::getMappingSources();
+  }
+
+  protected function getOwnMappings() {
+    $importer_config = feeds_importer($this->id)->getConfig();
+    return $this->filterMappings($importer_config['processor']['config']['mappings']);
   }
 
   /**
