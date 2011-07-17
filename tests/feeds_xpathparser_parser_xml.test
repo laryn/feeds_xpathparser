@@ -28,6 +28,11 @@ class FeedsXPathParserXMLTestCase extends FeedsXPathParserWebTestCase {
     $this->createImporterConfiguration('XPathXML', 'xpath_xml');
 
     $this->setPlugin('xpath_xml', 'FeedsXPathParserXML');
+    $importer_url = 'admin/structure/feeds/edit/xpath_xml/settings/FeedsXPathParserXML';
+    // Check help message.
+    $this->drupalGet($importer_url);
+    $this->assertRaw('<div class="help">FeedsXPathParser: No mappings are defined. Define mappings <a href="/admin/structure/feeds/edit/xpath_xml/mapping">here</a>.</div><br />');
+
     $this->addMappings('xpath_xml',
       array(
         array(
@@ -48,7 +53,6 @@ class FeedsXPathParserXMLTestCase extends FeedsXPathParserWebTestCase {
       )
     );
     // Set importer default settings.
-    $importer_url = 'admin/structure/feeds/edit/xpath_xml/settings/FeedsXPathParserXML';
     $edit = array(
       'xpath[context]' => '//entry',
       'xpath[sources][xpathparser:0]' => 'title',
@@ -179,6 +183,8 @@ class FeedsXPathParserXMLTestCase extends FeedsXPathParserWebTestCase {
     $this->assertFieldByName('feeds[FeedsXPathParserXML][xpath][sources][xpathparser:0]', 'booya');
     $this->assertFieldByName('feeds[FeedsXPathParserXML][xpath][sources][xpathparser:1]', 'boyz');
     $this->assertFieldByName('feeds[FeedsXPathParserXML][xpath][sources][xpathparser:2]', 'woot');
+    // Check that our message comes out correct.
+    $this->assertText('Field guid is mandatory and considered unique: only one item per guid value will be created.');
 
     // Check that allow_override works as expected.
     $this->setSettings('xpath_xml', 'FeedsXPathParserXML', array('xpath[allow_override]' => FALSE));
