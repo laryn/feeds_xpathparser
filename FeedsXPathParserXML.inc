@@ -22,9 +22,13 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
       $encoding = $this->source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string(trim($fetcher_result->getRaw()), $config, $encoding);
     }
+    else {
+      $raw = $fetcher_result->getRaw();
+    }
     $this->doc = new DOMDocument();
     $use = $this->errorStart();
-    $success = $this->doc->loadXML($fetcher_result->getRaw());
+    $success = $this->doc->loadXML($raw);
+    unset($raw);
     $this->errorStop($use, $this->source_config['exp']['errors']);
     if (!$success) {
       throw new Exception(t('There was an error parsing the XML document.'));
