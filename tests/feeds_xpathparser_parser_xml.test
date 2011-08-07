@@ -28,7 +28,7 @@ class FeedsXPathParserXMLTestCase extends FeedsXPathParserWebTestCase {
     $this->createImporterConfiguration('XPathXML', 'xpath_xml');
 
     $this->setPlugin('xpath_xml', 'FeedsXPathParserXML');
-    $importer_url = 'admin/structure/feeds/edit/xpath_xml/settings/FeedsXPathParserXML';
+    $importer_url = $this->feeds_base . '/xpath_xml/settings/FeedsXPathParserXML';
     // Check help message.
     $this->drupalGet($importer_url);
     $this->assertRaw('<div class="help">FeedsXPathParser: No mappings are defined. Define mappings <a href="/admin/structure/feeds/edit/xpath_xml/mapping">here</a>.</div><br />');
@@ -200,7 +200,7 @@ class FeedsXPathParserXMLTestCase extends FeedsXPathParserWebTestCase {
     $this->createImporterConfiguration();
 
     $this->setPlugin('syndication', 'FeedsXPathParserXML');
-    $importer_url = 'admin/structure/feeds/edit/syndication/settings/FeedsXPathParserXML';
+    $importer_url = $this->feeds_base . '/syndication/settings/FeedsXPathParserXML';
     $this->addMappings('syndication',
       array(
         array(
