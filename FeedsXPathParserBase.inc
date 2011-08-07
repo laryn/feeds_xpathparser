@@ -432,4 +432,29 @@ class FeedsXPathParserBase extends FeedsParser {
     }
     return $our_mappings;
   }
+
+  protected function errorStart() {
+    return libxml_use_internal_errors(TRUE);
+  }
+
+  protected function errorStop($use, $print = TRUE) {
+    if ($print) {
+      foreach (libxml_get_errors() as $error) {
+        switch ($error->level) {
+          case LIBXML_ERR_WARNING:
+          case LIBXML_ERR_ERROR:
+            $type = 'warning';
+            break;
+          case LIBXML_ERR_FATAL:
+            $type = 'error';
+            break;
+
+        }
+        $message = t('%error on line %num. Error code: %code', array('%error' => trim($error->message), '%num' => $error->line, '%code' => $error->code));
+        drupal_set_message($message, $type, FALSE);
+      }
+    }
+    libxml_clear_errors();
+    libxml_use_internal_errors($use);
+  }
 }
