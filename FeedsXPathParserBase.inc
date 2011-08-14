@@ -8,71 +8,78 @@
 /**
  * Base class for the HTML and XML parsers.
  */
-class FeedsXPathParserBase extends FeedsParser {
+abstract class FeedsXPathParserBase extends FeedsParser {
 
   protected $modified_queries = array();
   protected $rawXML = array();
+  protected $doc = NULL;
+  protected $xpath = NULL;
+
+  /**
+   * Classes that use FeedsXPathParserBase must implement this.
+   *
+   * @param array $source_config
+   *   The configuration for the source.
+   * @param FeedsFetcherResult $fetcher_result
+   *   A FeedsFetcherResult object.
+   *
+   * @return DOMDocument
+   *   The DOMDocument to perform XPath queries on.
+   */
+  abstract protected function setup($source_config, FeedsFetcherResult $fetcher_result);
 
   /**
    * Implements FeedsParser::parse().
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
-    $this->source_config = $source->getConfigFor($this);
+    $source_config = $source->getConfigFor($this);
 
-    if (empty($this->source_config)) {
-      $this->source_config = $this->getConfig();
+    if (empty($source_config)) {
+      $source_config = $this->getConfig();
     }
 
-    $this->parserResult = new FeedsParserResult();
+    $this->doc = $this->setup($source_config, $fetcher_result);
 
-    $this->mappings = $this->getOwnMappings();
-    $this->rawXML = array_keys(array_filter($this->source_config['rawXML']));
+    $parser_result = new FeedsParserResult();
+
+    $mappings = $this->getOwnMappings();
+    $this->rawXML = array_keys(array_filter($source_config['rawXML']));
     // Set link.
     $fetcher_config = $source->getConfigFor($source->importer->fetcher);
-    $this->parserResult->link = $fetcher_config['source'];
-  }
-
-  /**
-   * Starts the parsing. First runs the context query, then queries each
-   * item from the context with the field queries.
-   *
-   * @param $dom
-   *   A DOMDocument object.
-   *
-   * @return array
-   *   Returns a structured array suitable for use in FeedsParserResult().
-   */
-  protected function query() {
+    $parser_result->link = $fetcher_config['source'];
 
     $this->xpath = new FeedsXPathParserDOMXPath($this->doc);
     $config = array();
-    $config['debug'] = array_keys(array_filter($this->source_config['exp']['debug']));
-    $config['errors'] = $this->source_config['exp']['errors'];
+    $config['debug'] = array_keys(array_filter($source_config['exp']['debug']));
+    $config['errors'] = $source_config['exp']['errors'];
 
     $this->xpath->setConfig($config);
-    $allNodes = $this->xpath->namespacedQuery($this->source_config['context'], NULL, 'context');
+    $all_nodes = $this->xpath->namespacedQuery($source_config['context'], NULL, 'context');
 
-    foreach ($allNodes as $node) {
-      $parsedItem = $variables = array();
-      foreach ($this->source_config['sources'] as $source => $query) {
+    foreach ($all_nodes as $node) {
+      $parsed_item = $variables = array();
+      foreach ($source_config['sources'] as $source => $query) {
         // Variable substitution.
         $query = strtr($query, $variables);
         // Parse the item.
         $result = $this->parseSourceElement($query, $node, $source);
         if (isset($result)) {
           if (!is_array($result)) {
-            $variables['$' . $this->mappings[$source]] = $result;
+            $variables['$' . $mappings[$source]] = $result;
           }
           else {
-            $variables['$' . $this->mappings[$source]] = '';
+            $variables['$' . $mappings[$source]] = '';
           }
-          $parsedItem[$source] = $result;
+          $parsed_item[$source] = $result;
         }
       }
-      if (!empty($parsedItem)) {
-        $this->parserResult->items[] = $parsedItem;
+      if (!empty($parsed_item)) {
+        $parser_result->items[] = $parsed_item;
       }
     }
+    unset($this->doc);
+    unset($this->xpath);
+    return $parser_result;
   }
 
   /**
@@ -174,7 +181,16 @@ class FeedsXPathParserBase extends FeedsParser {
       '#collapsed' => TRUE,
     );
     if (empty($mappings)) {
-      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('FeedsXPathParser: No mappings are defined. Define mappings !link.', array('!link' => l(t('here'), 'admin/structure/feeds/edit/' . $this->id . '/mapping'))) . '</div><br />';
+      // Detect if Feeds menu structure has changed. This will take a while to be
+      // released, but since I run dev it needs to work.
+      $feeds_menu = feeds_ui_menu();
+      if (isset($feeds_menu['admin/structure/feeds/list'])) {
+        $feeds_base = 'admin/structure/feeds/edit/';
+      }
+      else {
+        $feeds_base = 'admin/structure/feeds/';
+      }
+      $form['xpath']['error_message']['#markup'] = '<div class="help">' . t('No XPath mappings are defined. Define mappings !link.', array('!link' => l(t('here'), $feeds_base . $this->id . '/mapping'))) . '</div><br />';
       return $form;
     }
     $form['xpath']['context'] = array(
@@ -211,7 +227,11 @@ class FeedsXPathParserBase extends FeedsParser {
         '#size' => 80,
       );
       if (!empty($variables)) {
-        $form['xpath']['sources'][$source]['#description'] .= '<br />' . t('The variables ' . implode(', ', $variables) . ' are available for replacement.');
+        $variable_text = format_plural(count($variables),
+          t('The variable ' . implode(', ', $variables) . ' is availliable for replacement.'),
+          t('The variables ' . implode(', ', $variables) . ' are availliable for replacement.')
+        );
+        $form['xpath']['sources'][$source]['#description'] .= '<br />' . $variable_text;
       }
       $variables[] = '$' . $target;
     }
@@ -415,6 +435,13 @@ class FeedsXPathParserBase extends FeedsParser {
     ) + parent::getMappingSources();
   }
 
+  /**
+   * Get the mappings that belong to us i.e. mappings that begin with
+   * "xpathparser:".
+   *
+   * @return array
+   *   An array of mappings keyed source => target.
+   */
   protected function getOwnMappings() {
     $importer_config = feeds_importer($this->id)->getConfig();
     return $this->filterMappings($importer_config['processor']['config']['mappings']);
@@ -422,6 +449,12 @@ class FeedsXPathParserBase extends FeedsParser {
 
   /**
    * Filters mappings, returning the ones that belong to us.
+   *
+   * @param array $mappings
+   *   A mapping array from a processor.
+   *
+   * @return array
+   *   An array of mappings keyed source => target.
    */
   protected function filterMappings($mappings) {
     $our_mappings = array();
@@ -433,10 +466,24 @@ class FeedsXPathParserBase extends FeedsParser {
     return $our_mappings;
   }
 
+  /**
+   * Start custom error handling.
+   *
+   * @return bool
+   *   The previous value of use_errors.
+   */
   protected function errorStart() {
     return libxml_use_internal_errors(TRUE);
   }
 
+  /**
+   * Stop custom error handling.
+   *
+   * @param bool $use
+   *   The previous value of use_errors.
+   * @param bool $print
+   *   (Optional) Whether to print errors to the screen. Defaults to TRUE.
+   */
   protected function errorStop($use, $print = TRUE) {
     if ($print) {
       foreach (libxml_get_errors() as $error) {

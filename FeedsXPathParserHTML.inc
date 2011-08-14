@@ -7,12 +7,11 @@
 class FeedsXPathParserHTML extends FeedsXPathParserBase {
 
   /**
-   * Implements FeedsParser::parse().
+   * Implements FeedsXPathParserBase::setup().
    */
-  public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
-    parent::parse($source, $fetcher_result);
+  protected function setup($source_config, FeedsFetcherResult $fetcher_result) {
 
-    if (!empty($this->source_config['exp']['tidy'])) {
+    if (!empty($source_config['exp']['tidy'])) {
       $config = array(
         'merge-divs'       => FALSE,
         'merge-spans'      => FALSE,
@@ -24,24 +23,21 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
         'word-2000'        => TRUE,
       );
       // Default tidy encoding is UTF8.
-      $encoding = $this->source_config['exp']['tidy_encoding'];
+      $encoding = $source_config['exp']['tidy_encoding'];
       $raw = tidy_repair_string(trim($fetcher_result->getRaw()), $config, $encoding);
     }
     else {
       $raw = $fetcher_result->getRaw();
     }
-    $this->doc = new DOMDocument();
+    $doc = new DOMDocument();
     // Use our own error handling.
     $use = $this->errorStart();
-    $success = $this->doc->loadHTML($raw);
+    $success = $doc->loadHTML($raw);
     unset($raw);
-    $this->errorStop($use, $this->source_config['exp']['errors']);
+    $this->errorStop($use, $source_config['exp']['errors']);
     if (!$success) {
       throw new Exception(t('There was an error parsing the HTML document.'));
     }
-    // Parse!
-    $this->query();
-    unset($this->doc);
-    return $this->parserResult;
+    return $doc;
   }
 }
