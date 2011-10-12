@@ -10,7 +10,6 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
    * Implements FeedsXPathParserBase::setup().
    */
   protected function setup($source_config, FeedsFetcherResult $fetcher_result) {
-    //parent::parse($source, $fetcher_result);
 
     if (!empty($source_config['exp']['tidy'])) {
       $config = array(
