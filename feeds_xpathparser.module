@@ -4,7 +4,6 @@
  * Implements hook_feeds_plugins().
  */
 function feeds_xpathparser_feeds_plugins() {
-  $path = drupal_get_path('module', 'feeds_xpathparser');
   return array(
     'FeedsXPathParserHTML' => array(
       'name' => t('XPath HTML parser'),
@@ -12,8 +11,6 @@ function feeds_xpathparser_feeds_plugins() {
       'handler' => array(
         'parent' => 'FeedsParser',
         'class'  => 'FeedsXPathParserHTML',
-        'file'   => 'FeedsXPathParserHTML.inc',
-        'path'   => $path,
       ),
     ),
     'FeedsXPathParserXML' => array(
@@ -22,8 +19,6 @@ function feeds_xpathparser_feeds_plugins() {
       'handler' => array(
         'parent' => 'FeedsParser',
         'class'  => 'FeedsXPathParserXML',
-        'file'   => 'FeedsXPathParserXML.inc',
-        'path'   => $path,
       ),
     ),
   );
