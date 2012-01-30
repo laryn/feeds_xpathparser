@@ -112,7 +112,7 @@ abstract class FeedsXPathParserBase extends FeedsParser {
       $results = array();
       if (in_array($source, $this->rawXML)) {
         foreach ($node_list as $node) {
-          $results[] = $this->doc->savexML($node);
+          $results[] = $this->getRaw($node);
         }
       }
       else {
@@ -505,4 +505,6 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     libxml_clear_errors();
     libxml_use_internal_errors($use);
   }
+
+  abstract protected function getRaw(DOMNode $node);
 }
