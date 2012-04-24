@@ -79,6 +79,14 @@ class FeedsXPathParserDOMXPath extends DOMXPath {
           FALSE);
       }
     }
+
+    // DOMXPath::evaluate() and DOMXPath::query() will return FALSE on error or
+    // if the value is false. We check error result and return NULL in case
+    // of error.
+    if (is_object($this->error) && $this->error->level == LIBXML_ERR_ERROR) {
+      return NULL;
+    }
+
     return $results;
   }
 
