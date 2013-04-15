@@ -57,20 +57,25 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     $all_nodes = $this->xpath->namespacedQuery($source_config['context'], NULL, 'context');
 
     foreach ($all_nodes as $node) {
+      // Invoke a hook to check whether the domnode should be skipped.
+      if (in_array(TRUE, module_invoke_all('feeds_xpathparser_filter_domnode', $node, $this->doc, $source), TRUE)) {
+        continue;
+      }
+
       $parsed_item = $variables = array();
-      foreach ($source_config['sources'] as $source => $query) {
+      foreach ($source_config['sources'] as $element_key => $query) {
         // Variable substitution.
         $query = strtr($query, $variables);
         // Parse the item.
-        $result = $this->parseSourceElement($query, $node, $source);
+        $result = $this->parseSourceElement($query, $node, $element_key);
         if (isset($result)) {
           if (!is_array($result)) {
-            $variables['$' . $mappings[$source]] = $result;
+            $variables['$' . $mappings[$element_key]] = $result;
           }
           else {
-            $variables['$' . $mappings[$source]] = '';
+            $variables['$' . $mappings[$element_key]] = '';
           }
-          $parsed_item[$source] = $result;
+          $parsed_item[$element_key] = $result;
         }
       }
       if (!empty($parsed_item)) {
