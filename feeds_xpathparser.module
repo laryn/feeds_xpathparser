@@ -25,3 +25,15 @@ function feeds_xpathparser_feeds_plugins() {
     ),
   );
 }
+
+/**
+ * Implements hook_hook_info().
+ */
+function feeds_xpathparser_hook_info() {
+  $hooks = array();
+  $hooks['feeds_xpathparser_filter_domnode'] = array(
+    'group' => 'feeds_xpathparser',
+  );
+
+  return $hooks;
+}
