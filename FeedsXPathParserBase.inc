@@ -348,7 +348,7 @@ abstract class FeedsXPathParserBase extends FeedsParser {
    * If the values of this source are the same as the base config we set them to
    * blank so that the values will be inherited from the importer defaults.
    */
-  public function sourceFormValidate(array &$values) {
+  public function sourceFormValidate(&$values) {
     $config = $this->getConfig();
     $values = $values['xpath'];
     $allow_override = $config['allow_override'];
