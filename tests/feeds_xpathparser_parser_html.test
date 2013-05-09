@@ -50,6 +50,8 @@ class FeedsXPathParseHTMLTestCase extends FeedsXPathParserWebTestCase {
     $this->postAndCheck($importer_url, $edit, t('Save'), t('Your changes have been saved.'));
 
     // Test import.
+    // Set batch limit to 5 to force batching.
+    variable_set('feeds_process_limit', 5);
     $path = $GLOBALS['base_url'] . '/' . drupal_get_path('module', 'feeds_xpathparser') . '/tests/feeds_xpathparser/';
     $nid = $this->createFeedNode('xpath', $path . 'issues_drupal.org.htm', 'Testing XPath HTML Parser');
     $feed_node_edit_url = 'node/' . $nid . '/edit';
