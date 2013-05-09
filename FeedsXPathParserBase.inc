@@ -10,7 +10,6 @@
  */
 abstract class FeedsXPathParserBase extends FeedsParser {
 
-  protected $modified_queries = array();
   protected $rawXML = array();
   protected $doc = NULL;
   protected $xpath = NULL;
@@ -44,6 +43,7 @@ abstract class FeedsXPathParserBase extends FeedsParser {
    */
   public function parse(FeedsSource $source, FeedsFetcherResult $fetcher_result) {
     $source_config = $source->getConfigFor($this);
+    $state = $source->state(FEEDS_PARSE);
 
     if (empty($source_config)) {
       $source_config = $this->getConfig();
@@ -65,7 +65,22 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     $config['errors'] = $source_config['exp']['errors'];
 
     $this->xpath->setConfig($config);
-    $all_nodes = $this->xpath->namespacedQuery($source_config['context'], NULL, 'context');
+
+    $context_query = '(' . $source_config['context'] . ')';
+    if (empty($state->total)) {
+      $state->total = $this->xpath->namespacedQuery('count(' . $context_query . ')', $this->doc, 'count');
+    }
+
+    $start = $state->pointer ? $state->pointer : 0;
+    $limit = $start + $source->importer->getLimit();
+    $end = ($limit > $state->total) ? $state->total : $limit;
+    $state->pointer = $end;
+
+    $context_query .= "[position() > $start and position() <= $end]";
+
+    $progress = $state->pointer ? $state->pointer : 0;
+
+    $all_nodes = $this->xpath->namespacedQuery($context_query, NULL, 'context');
 
     foreach ($all_nodes as $node) {
       // Invoke a hook to check whether the domnode should be skipped.
@@ -93,6 +108,8 @@ abstract class FeedsXPathParserBase extends FeedsParser {
         $parser_result->items[] = $parsed_item;
       }
     }
+
+    $state->progress($state->total, $progress);
     unset($this->doc);
     unset($this->xpath);
     return $parser_result;
