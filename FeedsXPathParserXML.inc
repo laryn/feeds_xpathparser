@@ -11,7 +11,7 @@ class FeedsXPathParserXML extends FeedsXPathParserBase {
    */
   protected function setup($source_config, FeedsFetcherResult $fetcher_result) {
 
-    if (!empty($source_config['exp']['tidy'])) {
+    if (!empty($source_config['exp']['tidy']) && extension_loaded('tidy')) {
       $config = array(
         'input-xml' => TRUE,
         'wrap'      => 0,
