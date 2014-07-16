@@ -569,4 +569,13 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     libxml_use_internal_errors($use);
   }
 
+  /**
+   * Overrides parent::hasSourceConfig().
+   *
+   * Stop Feeds from building our form over and over again.
+   */
+  public function hasSourceConfig() {
+    return TRUE;
+  }
+
 }
