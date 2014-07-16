@@ -2,6 +2,7 @@ name = Feeds XPath Parser
 description = Parse an XML or HTML document using XPath.
 package = Feeds
 dependencies[] = feeds
+
 files[] = FeedsXPathParserBase.inc
 files[] = FeedsXPathParserHTML.inc
 files[] = FeedsXPathParserXML.inc

@@ -2,7 +2,11 @@
 
 /**
  * @files
- * Provides the FeedsXPathParserXML class.
+ * Contains FeedsXPathParserXML.
+ */
+
+/**
+ * XPath parsing for XML.
  */
 class FeedsXPathParserXML extends FeedsXPathParserBase {
 
