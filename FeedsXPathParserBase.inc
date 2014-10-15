@@ -57,7 +57,7 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     $this->rawXML = array_keys(array_filter($source_config['rawXML']));
     // Set link.
     $fetcher_config = $source->getConfigFor($source->importer->fetcher);
-    $parser_result->link = $fetcher_config['source'];
+    $parser_result->link = isset($fetcher_config['source']) ? $fetcher_config['source'] : '';
 
     $this->xpath = new FeedsXPathParserDOMXPath($this->doc);
     $config = array();
