@@ -52,10 +52,6 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       $raw = $fetcher_result->getRaw();
     }
 
-    $options = LIBXML_NONET;
-    $options |= defined('LIBXML_COMPACT') ? LIBXML_COMPACT : 0;
-    $options |= defined('LIBXML_PARSEHUGE') ? LIBXML_PARSEHUGE : 0;
-
     $document = new DOMDocument();
     $document->strictErrorChecking = FALSE;
     $document->recover = TRUE;
@@ -63,7 +59,16 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
     // Use our own error handling.
     $use = $this->errorStart();
 
-    $success = $document->loadHTML($raw, $options);
+    if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
+      $options = LIBXML_NONET;
+      $options |= defined('LIBXML_COMPACT') ? LIBXML_COMPACT : 0;
+      $options |= defined('LIBXML_PARSEHUGE') ? LIBXML_PARSEHUGE : 0;
+
+      $success = $document->loadHTML($source, $options);
+    }
+    else {
+      $success = $document->loadHTML($source);
+    }
 
     $this->errorStop($use, $source_config['exp']['errors']);
 
