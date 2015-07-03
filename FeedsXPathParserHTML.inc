@@ -64,10 +64,10 @@ class FeedsXPathParserHTML extends FeedsXPathParserBase {
       $options |= defined('LIBXML_COMPACT') ? LIBXML_COMPACT : 0;
       $options |= defined('LIBXML_PARSEHUGE') ? LIBXML_PARSEHUGE : 0;
 
-      $success = $document->loadHTML($source, $options);
+      $success = $document->loadHTML($raw, $options);
     }
     else {
-      $success = $document->loadHTML($source);
+      $success = $document->loadHTML($raw);
     }
 
     $this->errorStop($use, $source_config['exp']['errors']);
