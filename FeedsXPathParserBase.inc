@@ -10,9 +10,33 @@
  */
 abstract class FeedsXPathParserBase extends FeedsParser {
 
+  /**
+   * The DOMDocument used for parsing.
+   *
+   * @var DOMDocument
+   */
+  protected $doc;
+
+  /**
+   * The return value of libxml_disable_entity_loader().
+   *
+   * @var bool
+   */
+  protected $loader;
+
+  /**
+   * The elements that should be displayed in raw XML.
+   *
+   * @var array
+   */
   protected $rawXML = array();
-  protected $doc = NULL;
-  protected $xpath = NULL;
+
+  /**
+   * The DOMXPath objet used for parsing.
+   *
+   * @var DOMXPath
+   */
+  protected $xpath;
 
   /**
    * Classes that use FeedsXPathParserBase must implement this.
@@ -532,6 +556,10 @@ abstract class FeedsXPathParserBase extends FeedsParser {
    */
   protected function errorStart() {
     libxml_clear_errors();
+    if (function_exists('libxml_disable_entity_loader')) {
+      $this->loader = libxml_disable_entity_loader(TRUE);
+    }
+
     return libxml_use_internal_errors(TRUE);
   }
 
@@ -567,6 +595,11 @@ abstract class FeedsXPathParserBase extends FeedsParser {
     }
     libxml_clear_errors();
     libxml_use_internal_errors($use);
+
+    if (function_exists('libxml_disable_entity_loader') && isset($this->loader)) {
+      libxml_disable_entity_loader($this->loader);
+      unset($this->loader);
+    }
   }
 
   /**
