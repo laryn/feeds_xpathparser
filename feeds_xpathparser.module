@@ -50,3 +50,16 @@ function feeds_xpathparser_hook_info() {
 
   return $hooks;
 }
+
+/**
+ * Implements hook_autoload_info().
+ */
+function feeds_xpathparser_autoload_info() {
+  return array(
+    'FeedsXPathParserBase' => 'FeedsXPathParserBase.inc',
+    'FeedsXPathParserHTML' => 'FeedsXPathParserHTML.inc',
+    'FeedsXPathParserXML' => 'FeedsXPathParserXML.inc',
+	'FeedsXPathParserQueryParser' => 'FeedsXPathParserQueryParser.inc',
+	'FeedsXPathParserDOMXPath' => 'FeedsXPathParserDOMXPath.inc',
+  );
+}

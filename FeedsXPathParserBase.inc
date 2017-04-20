@@ -588,7 +588,7 @@ abstract class FeedsXPathParserBase extends FeedsParser {
           '%code' => $error->code,
         );
         $message = t('%error on line %num. Error code: %code', $args);
-        drupal_set_message($message, $type, FALSE);
+        backdrop_set_message($message, $type, FALSE);
       }
     }
     libxml_clear_errors();
