@@ -4,5 +4,3 @@ package = Feeds
 backdrop = 1.x
 type = module
 dependencies[] = feeds
-
-version = "1.x-1.0.0"
