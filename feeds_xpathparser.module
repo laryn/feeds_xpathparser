@@ -12,6 +12,7 @@ function feeds_xpathparser_feeds_plugins() {
   return array(
     'FeedsXPathParserBase' => array(
       'hidden' => TRUE,
+      'module' => 'feeds_xpathparser',
       'handler' => array(
         'parent' => 'FeedsParser',
         'class' => 'FeedsXPathParserBase',
@@ -21,6 +22,7 @@ function feeds_xpathparser_feeds_plugins() {
     'FeedsXPathParserHTML' => array(
       'name' => t('XPath HTML parser'),
       'description' => t('Parse HTML using XPath.'),
+      'module' => 'feeds_xpathparser',
       'handler' => array(
         'parent' => 'FeedsXPathParserBase',
         'class' => 'FeedsXPathParserHTML',
@@ -30,6 +32,7 @@ function feeds_xpathparser_feeds_plugins() {
     'FeedsXPathParserXML' => array(
       'name' => t('XPath XML parser'),
       'description' => t('Parse XML using XPath.'),
+      'module' => 'feeds_xpathparser',
       'handler' => array(
         'parent' => 'FeedsXPathParserBase',
         'class' => 'FeedsXPathParserXML',
