@@ -29,6 +29,11 @@ Issues
 Bugs and Feature requests should be reported in the Issue Queue:
 https://github.com/backdrop-contrib/feeds_xpathparser/issues
 
+Current Maintainer
+------------------
+
+- Laryn Kragt Bakker (https://github.com/laryn).
+
 Credits
 -------
 
